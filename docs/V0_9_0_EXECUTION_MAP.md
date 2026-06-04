@@ -59,6 +59,20 @@ harvest/stewardship commits:
 | #2502 web_run RwLock split | Manually harvested with panic-safe state write-back, `Arc<WebPage>` cache reads, and serialized cache tests. | `cargo test -p codewhale-tui --locked web_run`; `cargo clippy -p codewhale-tui --locked -- -D warnings`; `cargo fmt --all -- --check` passed. |
 | #2517 turn_meta tail relocation | Manually harvested with the user-text content block first and volatile turn metadata last. | `cargo test -p codewhale-tui --locked turn_metadata`; `cargo test -p codewhale-tui --locked user_message_turn_meta_is_appended_not_prepended`; `cargo test -p codewhale-tui --locked post_edit_hook_injects_diagnostics_message_before_next_request`; `cargo test -p codewhale-tui --locked request_builder_keeps_tail_turn_meta_after_user_text_for_wire`; `cargo clippy -p codewhale-tui --locked -- -D warnings` passed. |
 
+## Stabilization Gate Evidence (#2721)
+
+This ledger is not closed yet. It records the evidence already attached to the
+v0.9 branch so the remaining Windows/manual checks are explicit.
+
+| Area | Current disposition | Evidence / remaining check |
+| --- | --- | --- |
+| Windows width/resize (#2708, #582 class) | Partially fixed on this branch. | #2708 is cherry-picked plus the fanout-card cache invalidation follow-up. `cargo test -p codewhale-tui --bin codewhale-tui --locked terminal_size -- --nocapture` passed. Still needs a real Windows Terminal resize smoke for #582 before #2721 closes. |
+| Windows shell descendant hangs (#2498, #1812 class) | Partially fixed and already harvested. | Foreground orphan-pipe regression passed locally with `cargo test -p codewhale-tui --all-features --locked foreground_shell_does_not_block_on_orphaned_subprocess_pipe -- --nocapture`. PR #2498 should close as harvested, but #1812 remains open for broader input-poll freeze modes and Windows CI/manual confirmation. |
+| Large-repo context startup (#697/#1827 class) | Partially covered. | Project-context pack ordering/budget/noise tests passed with `cargo test -p codewhale-tui --bin codewhale-tui --locked project_context_pack -- --nocapture`. Still missing a synthetic many-file startup smoke that exercises first-turn latency end to end. |
+| Sub-agent timeout and trust model (#1806, #719) | Fixed or covered in current branch. | `heartbeat_timeout_secs` clamp/default test passed, and `agent_open_description_explains_fresh_vs_forked_context_and_trust_model` asserts that sub-agent results are self-reports. |
+| Queued/live input feedback (#2054/#1786 adjacent) | Partially covered. | `cargo test -p codewhale-tui --bin codewhale-tui --locked queued -- --nocapture` passed for queued-message recovery/editing. Still needs one release-note/manual-smoke pass for live shell/work-queue feedback before closing the broader #1786 bucket. |
+| Prompt/UI calmness (#1191) | Defer or narrow. | No release-blocking regression evidence yet; keep as polish unless a current user-facing prompt/UI failure is identified. |
+
 ## PR Harvest Queue
 
 | PR | State | v0.9.0 disposition |
@@ -74,12 +88,12 @@ harvest/stewardship commits:
 | #2269 approval details and shell previews | Conflicting | Review for small UI harvest only. |
 | #2318 message_submit hook transform | Draft/conflicting | Defer; hook behavior must match lifecycle policy. |
 | #2382 v0.8.48 release harvest | Draft/conflicting | Candidate to close as obsolete after confirming no unharvested commits. |
-| #2476 fork migration parent links | Conflicting | Prior memory says safe candidate; verify against current state before closure/harvest. |
+| #2476 fork migration parent links | Conflicting / already harvested | Patch-equivalent work is already present on `origin/main` and this branch as `b76a11b99` plus follow-up `18550339a`. Close/comment original after the integration branch is public, crediting @cyq1017; close issue #2082 only after confirming the remaining `message_type` wording is obsolete. |
 | #2479 ProviderKind/ApiProvider trait collapse | Conflicting | Defer until file decomposition Phase 1 reduces config surface. |
 | #2482 WhaleFlow orchestration | Draft/conflicting | Inspect for IR ideas; do not merge wholesale. |
 | #2486 WhaleFlow cost tracking | Draft/conflicting | Inspect after #2482; harvest telemetry ideas only. |
 | #2491 typed ask permissions schema | Conflicting | Prior memory says safe candidate; verify current permissions work first. |
-| #2498 Windows shell process trees | Conflicting | Prior memory says safe candidate; review for #2721 stabilization. |
+| #2498 Windows shell process trees | Conflicting / already harvested | Patch-equivalent work is already present on `origin/main` and this branch through the Windows JobObject cleanup commits. Close/comment PR #2498 as harvested, crediting @aboimpinto; leave issue #1812 open because this fixes descendant pipe-handle hangs but not every reported Windows input-poll freeze mode. |
 | #2501 in-process LLM response cache | Conflicting | Defer; cache key risks noted in prior review. |
 | #2502 web_run RwLock split | Mergeable | Manually harvested with panic-safety and shared cached-page reads; close/comment after branch is public. |
 | #2505 subagent cap accounting | Draft/conflicting | Compare with current subagent cap tests before harvest. |
@@ -140,8 +154,8 @@ Issue count should drop through evidence-backed consolidation, not bulk closing.
 
 ## Immediate Next Actions
 
-1. Prepare public comments for #2708, #2502, #2513, #2530, #2576, #2581, #2627,
-   #2634, #2636, #2687, #2736, #2737, #2738, and already-harvested performance
-   PRs.
+1. Prepare public comments for #2476, #2498, #2708, #2502, #2513, #2530,
+   #2576, #2581, #2627, #2634, #2636, #2687, #2736, #2737, #2738, and
+   already-harvested performance PRs.
 2. Start file decomposition Phase 1 only after the PR harvest table has no
    unknown high-priority provider/prompt/cache branches.
