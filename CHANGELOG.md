@@ -71,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pending-input preview rows now label delivery mode explicitly as steer
   pending, rejected steer, or queued follow-up, with wrapped continuation rows
   aligned under the label so busy-turn input state is easier to read (#2054).
+- Auto-generated project instructions now reuse the bounded Project Context
+  Pack data instead of running an unbounded summary/tree scan when no
+  `.codewhale/instructions.md` file exists. The fallback keeps later
+  top-level folders visible in noisy large workspaces while the dynamic
+  `<project_context_pack>` marker remains controlled by its own setting
+  (#697, #1827).
 
 ### Community
 
@@ -86,7 +92,10 @@ HarmonyOS/OpenHarmony port and MatePad Edge validation trail (#2634),
 **@idling11** for the PlanArtifact direction in Plan mode (#2733) and the
 dense tool-call transcript collapse direction (#2738, #2692), and
 **@h3c-hexin** for the tool-agent model inheritance and configured
-`skills_dir` fixes (#2736, #2737).
+`skills_dir` fixes (#2736, #2737). Thanks also to **@NASLXTO** and
+**@wuxixing** for the large-workspace startup reports (#697, #1827), and to
+**@linzhiqin2003** and **@merchloubna70-dot** for earlier context-cap and
+startup-diagnosis work that shaped this bounded fallback.
 
 ## [0.8.53] - 2026-06-03
 
