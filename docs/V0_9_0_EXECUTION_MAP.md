@@ -19,13 +19,15 @@ PR is harvested, superseded, deferred, or closed.
 1. Stabilization and PR harvest: finish #2721 and #2722 before new feature work.
 2. Provider/model/auth correctness: land narrow correctness fixes that match the
    current provider architecture.
-3. File decomposition Phase 1: split safe, test-covered config/provider and TUI
+3. HarmonyOS/MatePad Edge intake: keep #2634 active, scoped, and credited while
+   the OHOS/Nix dependency clearance work finishes upstream.
+4. File decomposition Phase 1: split safe, test-covered config/provider and TUI
    view surfaces before adding larger workflow UX.
-4. WhaleFlow MVP: typed IR, executor skeleton, replay, and pod monitor before
+5. WhaleFlow MVP: typed IR, executor skeleton, replay, and pod monitor before
    teacher/student promotion loops.
-5. Model Lab and HarnessProfile MVP: Hugging Face polish and provider/model
+6. Model Lab and HarnessProfile MVP: Hugging Face polish and provider/model
    posture before automatic harness creation.
-6. Release readiness: keep #2729 current and do not tag or publish without
+7. Release readiness: keep #2729 current and do not tag or publish without
    maintainer approval.
 
 ## Current Branch Harvest
@@ -40,13 +42,14 @@ harvest/stewardship commits:
 | #2708 Windows sub-agent completion halves TUI render width | Cherry-picked as `e933a11d7`; follow-up fix `72653f8ef` invalidates reused fanout-card rows. | `cargo test -p codewhale-tui --locked subagent`; `cargo test -p codewhale-tui --locked terminal_size`; `cargo clippy -p codewhale-tui --locked -- -D warnings` passed. |
 | #2627 Xiaomi MiMo Token Plan mode | Harvested only the auth-header behavior as `5aa68d986`; did not merge the conflicting mode/env changes. | `cargo test -p codewhale-tui --bin codewhale-tui --locked xiaomi_mimo`; `cargo test -p codewhale-secrets --locked xiaomi_mimo`; `cargo test -p codewhale-config --locked xiaomi_mimo`; `cargo clippy -p codewhale-tui --locked -- -D warnings` passed. |
 | #2636 project-context mtime cache | Defer direct merge; harvest only after cache key/signature is widened. | Must include constitution changes, auto-generated context deletion, canonical path equivalence, and overwrite detection before landing. |
-| #2634 HarmonyOS port | Defer direct merge; draft has broad platform and TLS/runtime blast radius. | Harvest at most the unused `rustyline` cleanup after local verification; full port needs OHOS target checks and sandbox/security review. |
+| #2634 HarmonyOS port | Active HarmonyOS/MatePad Edge lane; do not close. | User-supplied MatePad Edge demo (`https://bilibili.com/video/av116689597368905`) confirms real-device interest. PR remains draft/blocked while the author waits on upstream Nix/dependency clearance and carries local patches; full port needs OHOS target checks plus sandbox, TLS, keyring, clipboard, browser-open, and self-update review before merge. |
 | #2687 append-only mode/approval prompt | Defer direct merge; draft has compile failures and Plan-mode prompt correctness risks. | Any future harvest must keep stable `message[0]` genuinely mode-agnostic, preserve mode/approval suffixes after capacity replans, and distinguish external overrides from persisted generated prompts. |
 | #2581 provider fallback chain design doc | Manually harvested as `docs/rfcs/2574-provider-fallback-chain.md` because the current PR head has no net file changes. | Keep issue #2574 open for implementation; close/comment on #2581 after the integration branch is public, crediting @idling11 and reporter @hsdbeebou. |
 | #2530 mention depth-cap hint | Already present in the current v0.9 stack as `a97675824` and `29f57665e`. | `cargo test -p codewhale-tui --locked try_autocomplete_file_mention_no_match` passed. |
 | #2513 restore snapshot listing | Manually harvested as `bb39cf169` with explicit `/restore list 101` cap rejection. | `cargo test -p codewhale-tui --locked restore_`; `cargo fmt --all -- --check`; `cargo clippy -p codewhale-tui --locked -- -D warnings` passed. Keep #2494 open because this is only the restore-listing slice. |
 | #2576 PrefixCacheChange first-freeze event | Already present in the current v0.9 stack through `29acb87a9d`. | `cargo test -p codewhale-tui --locked prefix_cache` passed. Do not close until this integration branch is public or merged. |
 | #2502 web_run RwLock split | Manually harvested with panic-safe state write-back, `Arc<WebPage>` cache reads, and serialized cache tests. | `cargo test -p codewhale-tui --locked web_run`; `cargo clippy -p codewhale-tui --locked -- -D warnings`; `cargo fmt --all -- --check` passed. |
+| #2517 turn_meta tail relocation | Manually harvested with the user-text content block first and volatile turn metadata last. | `cargo test -p codewhale-tui --locked turn_metadata`; `cargo test -p codewhale-tui --locked user_message_turn_meta_is_appended_not_prepended`; `cargo test -p codewhale-tui --locked post_edit_hook_injects_diagnostics_message_before_next_request`; `cargo test -p codewhale-tui --locked request_builder_keeps_tail_turn_meta_after_user_text_for_wire`; `cargo clippy -p codewhale-tui --locked -- -D warnings` passed. |
 
 ## PR Harvest Queue
 
@@ -75,14 +78,14 @@ harvest/stewardship commits:
 | #2506 provider path suffix overrides | Draft/conflicting | Partly superseded by current provider path-suffix support; verify. |
 | #2507 stream chunk timeout config | Draft/conflicting | Defer unless stabilization needs it. |
 | #2508 configurable path suffix | Conflicting | Likely superseded by #2506/current code; verify linked issue #2089. |
-| #2509 parallel read-only web search | Mergeable / already merged via #2504 | Already present in `origin/main` as `a09af2024`; safe to close as harvested/superseded. |
+| #2509 parallel read-only web search | Closed / already merged via #2504 | Already present in `origin/main` as `a09af2024`; closed as harvested/superseded on 2026-06-04. |
 | #2510 custom DuckDuckGo endpoint | Draft/mergeable | Low priority; defer unless docs/search lane takes it. |
 | #2511 ToolCallBefore hooks | Conflicting | Defer to hook lifecycle lane. |
 | #2512 custom completion sounds | Draft/conflicting | Defer. |
 | #2513 restore snapshot listing | Draft/mergeable | Manually harvested as `bb39cf169` with cap-rejection polish; close/comment after branch is public, leave #2494 open. |
-| #2517 turn_meta tail relocation | Mergeable | Already in high-priority harvest list; review prompt/cache implications. |
-| #2520 prompt base disk cache | Mergeable | Review after #2687 prompt architecture decision. |
-| #2522 hard compaction preserving system segment | Mergeable | Review after #2687 prompt architecture decision. |
+| #2517 turn_meta tail relocation | Mergeable | Manually harvested on the v0.9 branch; close/comment after branch is public. |
+| #2520 prompt base disk cache | Mergeable | Defer. Review found unused prompt-cache infrastructure with no runtime wiring, cache keys that still require building the prompt first, real-home cache writes in tests, and a contract that depends on the deferred #2687 prompt split. |
+| #2522 hard compaction preserving system segment | Mergeable | Defer. Review found a dormant hard path that would duplicate/cache summaries into the mutable system prompt if wired through current engine flow, and a simple tail split that can break tool-call pair and pinning invariants. |
 | #2526 shell tool availability docs | Draft/conflicting | Likely superseded by tool-surface docs; verify before closing. |
 | #2528 background completion wait | Draft/conflicting | Defer unless failing tests prove need. |
 | #2529 workspace shell opt-in | Draft/conflicting | Review with permissions/sandbox stabilization. |
@@ -96,7 +99,7 @@ harvest/stewardship commits:
 | #2631 estimated_input_tokens cache | Mergeable | Already harvested into the 22-commit stack. |
 | #2632 tool-catalog JSON cache | Mergeable | Already harvested into the 22-commit stack. |
 | #2633 capacity reverse scans | Mergeable | Already harvested into the 22-commit stack. |
-| #2634 HarmonyOS port | Draft/mergeable | Defer broad port. Review found global TLS/provider-install risk, OHOS clipboard/test cfg issues, and major sandbox/process-security degradations. |
+| #2634 HarmonyOS port | Draft/blocked | Keep as active HarmonyOS/MatePad Edge lane. Do not merge wholesale until upstream Nix/dependency clearance, OHOS target checks, and sandbox/TLS/keyring/clipboard/browser/self-update review are complete. |
 | #2635 output rows cache | Mergeable | Already harvested into the 22-commit stack. |
 | #2636 project-context cache | Conflicting | Defer/harvest only after cache correctness fixes. |
 | #2639 POST /v1/sessions endpoint | Mergeable | Defer; app-server contract needs focused review. |
@@ -125,9 +128,7 @@ Issue count should drop through evidence-backed consolidation, not bulk closing.
 
 ## Immediate Next Actions
 
-1. Review #2517, #2520, and #2522 for prompt/cache implications after #2687
-   was deferred.
-2. Prepare public comments for #2708, #2502, #2513, #2530, #2576, #2581, #2627,
+1. Prepare public comments for #2708, #2502, #2513, #2530, #2576, #2581, #2627,
    #2634, #2636, #2687, and already-harvested performance PRs.
-3. Start file decomposition Phase 1 only after the PR harvest table has no
+2. Start file decomposition Phase 1 only after the PR harvest table has no
    unknown high-priority provider/prompt/cache branches.

@@ -3062,6 +3062,22 @@ mod stream_decoder_tests {
         }
     }
 
+    fn user_message_with_tail_turn_meta(task: &str, turn_meta: &str) -> Message {
+        Message {
+            role: "user".to_string(),
+            content: vec![
+                ContentBlock::Text {
+                    text: task.to_string(),
+                    cache_control: None,
+                },
+                ContentBlock::Text {
+                    text: turn_meta.to_string(),
+                    cache_control: None,
+                },
+            ],
+        }
+    }
+
     fn tool_message_content(messages: &[Value], index: usize) -> &str {
         messages
             .iter()
@@ -3126,6 +3142,30 @@ mod stream_decoder_tests {
             format!("{expected_ref}\nsecond task"),
             "ref text must stay stable"
         );
+    }
+
+    #[test]
+    fn request_builder_keeps_tail_turn_meta_after_user_text_for_wire() {
+        let turn_meta = "<turn_meta>\nCurrent local date: 2026-05-09\n</turn_meta>";
+        let messages = vec![
+            user_message_with_tail_turn_meta("first task", turn_meta),
+            Message {
+                role: "assistant".to_string(),
+                content: vec![ContentBlock::Text {
+                    text: "first answer".to_string(),
+                    cache_control: None,
+                }],
+            },
+            user_message_with_tail_turn_meta("second task", turn_meta),
+        ];
+
+        let built = build_chat_messages(None, &messages, "deepseek-v4-flash");
+        let first = user_message_content(&built, 0);
+        let second = user_message_content(&built, 1);
+        let expected_ref = "<turn_meta_unchanged />";
+
+        assert_eq!(first, format!("first task\n{turn_meta}"));
+        assert_eq!(second, format!("second task\n{expected_ref}"));
     }
 
     #[test]

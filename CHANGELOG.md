@@ -21,12 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page handles and do not serialize through the mutation path. The harvest also
   adds panic-safe state write-back and serializes cache-mutating unit tests so
   the global web cache remains stable under normal Cargo test parallelism.
+- Appended volatile `<turn_meta>` blocks after user text in outgoing user
+  message content arrays so provider prefix caches can keep matching the stable
+  user-input prefix across date, route, and working-set changes.
 
 ### Community
 
 Thanks to **@cyq1017** for the restore-listing implementation (#2513) and
 **@wywsoor** for the broader macOS/iTerm rollback UX report (#2494), and
-**@HUQIANTAO** for the `web_run` lock-splitting work (#2502).
+**@HUQIANTAO** for the `web_run` lock-splitting work (#2502) and turn-metadata
+prefix-cache stability work (#2517).
 
 ## [0.8.53] - 2026-06-03
 
