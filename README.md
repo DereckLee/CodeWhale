@@ -644,12 +644,21 @@ Current v0.9 track credits:
   work (#2730, #2714, #2715, #2717, #2718)
 - **[shenjackyuanjie](https://github.com/shenjackyuanjie)** — HarmonyOS /
   OpenHarmony porting work and MatePad Edge validation trail (#2634)
+- **[ousamabenyounes](https://github.com/ousamabenyounes)** — AZERTY/AltGr
+  composer shortcut fix for Windows keyboard layouts (#2863, #2867)
+- **[reidliu41](https://github.com/reidliu41)** — hotbar action-registry
+  foundation and Ollama model-completion cleanup for the v0.9 track (#2866,
+  #2742)
+- **[ljm3790865](https://github.com/ljm3790865)** — multi-tab
+  core/persistence foundation and broader tab collaboration direction (#2864,
+  #2753)
 - **[sximelon](https://github.com/sximelon)** — saved-session resume footer
   hint work plus provider-trait metadata registry direction reviewed and
   harvested for the v0.9 track (#2758, #2760, #2479)
 - **[aboimpinto](https://github.com/aboimpinto)** — sidebar command polish and
-  pausable custom-command lifecycle direction harvested into the v0.9 track
-  (#2788, #2732)
+  pausable custom-command lifecycle direction harvested into the v0.9 track,
+  plus the directly merged command-support boundary cleanup and broader command
+  layer design direction (#2788, #2732, #2871, #2851, #2791)
 - **[AdityaVG13](https://github.com/AdityaVG13)** — WhaleFlow orchestration and
   cost-tracking drafts that shaped the maintained v0.9 WhaleFlow IR and
   TraceStore foundation (#2482, #2486)
@@ -670,8 +679,14 @@ Current v0.9 track credits:
   prompt composer direction (#2736, #2737, #2786)
 - **[gaord](https://github.com/gaord)** — runtime thread workspace updates and
   completed-thread saved-session API work (#2640, #2639)
-- **[cyq1017](https://github.com/cyq1017)** — restore-listing and
-  pending-input delivery-mode label work (#2513, #2532, #2054)
+- **[cyq1017](https://github.com/cyq1017)** — trusted workspace MCP config,
+  provider auth rollback, custom search endpoint, custom completion sound,
+  restore-listing, and pending-input delivery-mode label work (#2751, #2755,
+  #2510, #2512, #2513, #2532, #2054)
+- **[yusufgurdogan](https://github.com/yusufgurdogan)** — Sofya search
+  provider implementation harvested as a non-default search backend (#2790)
+- **[LeoAlex0](https://github.com/LeoAlex0)** — runtime prompt metadata cache
+  direction harvested into the v0.9 prompt/cache path (#2687)
 - **[NASLXTO](https://github.com/NASLXTO)** and
   **[wuxixing](https://github.com/wuxixing)** — large-workspace startup
   reports that shaped the bounded project-context fallback (#697, #1827)
