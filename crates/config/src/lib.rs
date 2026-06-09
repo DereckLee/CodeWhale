@@ -5883,7 +5883,6 @@ mode = "token-plan-usa"
     }
 
     #[test]
-    #[test]
     fn qwen3_6_plus_resolves_to_canonical_on_openrouter() {
         let _lock = env_lock();
         let _env = EnvGuard::without_deepseek_runtime_overrides();
@@ -5918,6 +5917,7 @@ mode = "token-plan-usa"
         assert_eq!(resolved.model, OPENROUTER_QWEN_3_6_PLUS_MODEL);
     }
 
+    #[test]
     fn openrouter_provider_normalizes_recent_large_model_aliases() {
         let _lock = env_lock();
         let _env = EnvGuard::without_deepseek_runtime_overrides();
