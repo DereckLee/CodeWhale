@@ -65,7 +65,7 @@ const LEGACY_HANDOFF_RELATIVE_PATH: &str = ".deepseek/handoff.md";
 /// Per-file size cap for `instructions = [...]` entries (#454). Mirrors
 /// the existing project-context cap in `project_context::load_context_file`
 /// so a malicious / oversized include can't blow the prompt budget on
-/// its own. Files larger than this are truncated with an `[…elided]`
+/// its own. Files larger than this are truncated with an explicit `[…truncated: N bytes omitted]`
 /// marker rather than skipped entirely so the model still sees the head.
 const INSTRUCTIONS_FILE_MAX_BYTES: usize = 100 * 1024;
 
@@ -142,7 +142,7 @@ for the current turn."
 /// guess from the user's first message. `locale_tag` is resolved by
 /// the caller from `Settings` so this function stays I/O-free.
 fn render_environment_block(workspace: &Path, locale_tag: &str) -> String {
-    let deepseek_version = env!("CARGO_PKG_VERSION");
+    let codewhale_version = env!("CARGO_PKG_VERSION");
     let platform = std::env::consts::OS;
     let shell = crate::shell_dispatcher::global_dispatcher()
         .kind()
@@ -154,7 +154,7 @@ fn render_environment_block(workspace: &Path, locale_tag: &str) -> String {
         "## Environment\n\
          \n\
          - lang: {locale_tag}\n\
-         - deepseek_version: {deepseek_version}\n\
+         - codewhale_version: {codewhale_version}\n\
          - platform: {platform}\n\
          - shell: {shell}\n\
          - pwd: {pwd}"
@@ -236,7 +236,12 @@ fn render_instructions_block(sources: &[InstructionSource]) -> Option<String> {
                 .rev()
                 .find(|&i| trimmed.is_char_boundary(i))
                 .unwrap_or(0);
-            format!("{}\n[…elided]", &trimmed[..head_end])
+            format!(
+                "{}\n[…truncated: {} of {} bytes omitted — consider splitting this instructions file]",
+                &trimmed[..head_end],
+                trimmed.len() - head_end,
+                trimmed.len()
+            )
         } else {
             trimmed.to_string()
         };
@@ -1680,7 +1685,7 @@ mod tests {
         assert!(block.starts_with("## Environment"));
         assert!(block.contains("- lang: zh-Hans"));
         assert!(block.contains(&format!(
-            "- deepseek_version: {}",
+            "- codewhale_version: {}",
             env!("CARGO_PKG_VERSION")
         )));
         assert!(block.contains(&format!("- pwd: {}", tmp.path().display())));
@@ -2025,7 +2030,7 @@ mod tests {
         };
         assert!(prompt.contains("## Environment"));
         assert!(prompt.contains("- lang: ja"));
-        assert!(prompt.contains("- deepseek_version:"));
+        assert!(prompt.contains("- codewhale_version:"));
     }
 
     #[test]
@@ -2838,7 +2843,7 @@ mod tests {
         std::fs::write(&big, "X".repeat(200 * 1024)).unwrap();
 
         let block = super::render_instructions_block(&[big.into()]).expect("non-empty");
-        assert!(block.contains("[…elided]"), "truncation marker missing");
+        assert!(block.contains("[…truncated:"), "truncation marker missing");
         // Block should be much smaller than the original file.
         assert!(
             block.len() < 110 * 1024,
@@ -2872,7 +2877,7 @@ mod tests {
             content: "Y".repeat(200 * 1024),
         };
         let trimmed = super::render_instructions_block(&[big_inline]).expect("non-empty");
-        assert!(trimmed.contains("[…elided]"));
+        assert!(trimmed.contains("[…truncated:"));
 
         // File + Inline 混用,顺序保持。
         let tmp = tempdir().expect("tempdir");
