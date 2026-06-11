@@ -163,6 +163,10 @@ pub const COMMON_DEEPSEEK_MODELS: &[&str] = &[
     "deepseek/deepseek-v4-flash",
 ];
 pub const OFFICIAL_DEEPSEEK_MODELS: &[&str] = &["deepseek-v4-pro", "deepseek-v4-flash"];
+pub const DEFAULT_ANTHROPIC_MODEL: &str = "claude-sonnet-4-6";
+pub const ANTHROPIC_OPUS_MODEL: &str = "claude-opus-4-8";
+pub const ANTHROPIC_HAIKU_MODEL: &str = "claude-haiku-4-5";
+pub const DEFAULT_ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -188,6 +192,7 @@ pub enum ApiProvider {
     Huggingface,
     Together,
     OpenaiCodex,
+    Anthropic,
 }
 
 impl ApiProvider {
@@ -237,6 +242,7 @@ impl ApiProvider {
             "ollama" | "ollama-local" => Some(Self::Ollama),
             "huggingface" | "hugging-face" | "hugging_face" | "hf" => Some(Self::Huggingface),
             "together" | "together-ai" | "together_ai" => Some(Self::Together),
+            "anthropic" | "claude" => Some(Self::Anthropic),
             "openai-codex" | "openai_codex" | "openaicodex" | "codex" | "chatgpt"
             | "chatgpt-codex" | "chatgpt_codex" | "chatgptcodex" => Some(Self::OpenaiCodex),
             _ => None,
@@ -267,6 +273,7 @@ impl ApiProvider {
             Self::Huggingface => "huggingface",
             Self::Together => "together",
             Self::OpenaiCodex => "openai-codex",
+            Self::Anthropic => "anthropic",
         }
     }
 
@@ -295,6 +302,7 @@ impl ApiProvider {
             Self::Huggingface => "Hugging Face",
             Self::Together => "Together AI",
             Self::OpenaiCodex => "OpenAI Codex (ChatGPT)",
+            Self::Anthropic => "Anthropic",
         }
     }
 
@@ -322,6 +330,7 @@ impl ApiProvider {
             Self::Huggingface,
             Self::Together,
             Self::OpenaiCodex,
+            Self::Anthropic,
         ]
     }
 }
@@ -378,6 +387,8 @@ pub struct ModelAliasDeprecation {
 pub enum RequestPayloadMode {
     /// Standard OpenAI-compatible `/v1/chat/completions` payload.
     ChatCompletions,
+    /// Native Anthropic Messages API `/v1/messages` payload (#3014).
+    AnthropicMessages,
 }
 
 /// Resolve the provider capability for a given [`ApiProvider`] and resolved
@@ -387,6 +398,23 @@ pub enum RequestPayloadMode {
 /// in the API payload (after normalization / provider-specific mapping).
 #[must_use]
 pub fn provider_capability(provider: ApiProvider, resolved_model: &str) -> ProviderCapability {
+    if matches!(provider, ApiProvider::Anthropic) {
+        return ProviderCapability {
+            provider,
+            resolved_model: resolved_model.to_string(),
+            // 200K is the conservative Anthropic floor; 4.6+ models resolve
+            // their 1M windows from models.rs rows (#3014).
+            context_window: crate::models::context_window_for_model(resolved_model)
+                .unwrap_or(200_000),
+            max_output: crate::models::max_output_tokens_for_model(resolved_model)
+                .unwrap_or(64_000),
+            thinking_supported: crate::models::model_supports_reasoning(resolved_model),
+            cache_telemetry_supported: true,
+            request_payload_mode: RequestPayloadMode::AnthropicMessages,
+            alias_deprecation: None,
+        };
+    }
+
     // #3023: Delete the Openai/Atlascloud/Moonshot early-return so these
     // providers use the generic model-based path below, which correctly
     // resolves context windows, output limits, and thinking support from
@@ -819,6 +847,11 @@ pub fn model_completion_names_for_provider(provider: ApiProvider) -> Vec<&'stati
         ApiProvider::Openai | ApiProvider::Atlascloud => OFFICIAL_DEEPSEEK_MODELS.to_vec(),
         ApiProvider::Together => vec![DEFAULT_TOGETHER_MODEL],
         ApiProvider::OpenaiCodex => vec![DEFAULT_OPENAI_CODEX_MODEL],
+        ApiProvider::Anthropic => vec![
+            ANTHROPIC_OPUS_MODEL,
+            DEFAULT_ANTHROPIC_MODEL,
+            ANTHROPIC_HAIKU_MODEL,
+        ],
     }
 }
 
@@ -1962,6 +1995,8 @@ pub struct ProvidersConfig {
     pub together: ProviderConfig,
     #[serde(default, alias = "openai-codex", alias = "codex", alias = "chatgpt")]
     pub openai_codex: ProviderConfig,
+    #[serde(default, alias = "claude")]
+    pub anthropic: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -2127,6 +2162,7 @@ impl Config {
             ApiProvider::NvidiaNim => "providers.nvidia_nim",
             ApiProvider::Together => "providers.together",
             ApiProvider::OpenaiCodex => "providers.openai_codex",
+            ApiProvider::Anthropic => "providers.anthropic",
             ApiProvider::Deepseek | ApiProvider::DeepseekCN => return,
         };
         tracing::warn!(
@@ -2276,6 +2312,7 @@ impl Config {
             ApiProvider::Huggingface => &providers.huggingface,
             ApiProvider::Together => &providers.together,
             ApiProvider::OpenaiCodex => &providers.openai_codex,
+            ApiProvider::Anthropic => &providers.anthropic,
         })
     }
 
@@ -2302,6 +2339,7 @@ impl Config {
             ApiProvider::Huggingface => &mut providers.huggingface,
             ApiProvider::Together => &mut providers.together,
             ApiProvider::OpenaiCodex => &mut providers.openai_codex,
+            ApiProvider::Anthropic => &mut providers.anthropic,
         }
     }
 
@@ -2425,6 +2463,7 @@ impl Config {
             ApiProvider::Huggingface => DEFAULT_HUGGINGFACE_MODEL,
             ApiProvider::Together => DEFAULT_TOGETHER_MODEL,
             ApiProvider::OpenaiCodex => DEFAULT_OPENAI_CODEX_MODEL,
+            ApiProvider::Anthropic => DEFAULT_ANTHROPIC_MODEL,
         }
         .to_string()
     }
@@ -2448,6 +2487,7 @@ impl Config {
                 .filter(|base| base.contains("integrate.api.nvidia.com"))
                 .cloned(),
             ApiProvider::Openai
+            | ApiProvider::Anthropic
             | ApiProvider::Atlascloud
             | ApiProvider::WanjieArk
             | ApiProvider::Openrouter
@@ -2511,6 +2551,7 @@ impl Config {
                     ApiProvider::Huggingface => DEFAULT_HUGGINGFACE_BASE_URL,
                     ApiProvider::Together => DEFAULT_TOGETHER_BASE_URL,
                     ApiProvider::OpenaiCodex => DEFAULT_OPENAI_CODEX_BASE_URL,
+                    ApiProvider::Anthropic => DEFAULT_ANTHROPIC_BASE_URL,
                 }
                 .to_string()
             })
@@ -2560,6 +2601,7 @@ impl Config {
             ApiProvider::Huggingface => "huggingface",
             ApiProvider::Together => "together",
             ApiProvider::OpenaiCodex => "openai_codex",
+            ApiProvider::Anthropic => "anthropic",
         };
 
         // 0. DeepSeek compatibility slot. The legacy top-level `api_key`
@@ -2725,6 +2767,11 @@ impl Config {
             ApiProvider::Together => anyhow::bail!(
                 "Together AI API key not found. Run 'codewhale auth set --provider together', \
                  set TOGETHER_API_KEY, or add [providers.together] api_key in ~/.codewhale/config.toml."
+            ),
+            ApiProvider::Anthropic => anyhow::bail!(
+                "Anthropic API key not found. Run 'codewhale auth set --provider anthropic', \
+                 set ANTHROPIC_API_KEY, or add [providers.anthropic] api_key in ~/.codewhale/config.toml. \
+                 Keys are created at https://platform.claude.com/."
             ),
             ApiProvider::OpenaiCodex => anyhow::bail!(
                 "OpenAI Codex OAuth credentials not found.\n\
@@ -3437,6 +3484,13 @@ fn apply_env_overrides(config: &mut Config) {
                     .openai
                     .base_url = Some(value);
             }
+            ApiProvider::Anthropic => {
+                config
+                    .providers
+                    .get_or_insert_with(ProvidersConfig::default)
+                    .anthropic
+                    .base_url = Some(value);
+            }
             ApiProvider::Openrouter => {
                 config
                     .providers
@@ -3757,6 +3811,7 @@ fn apply_env_overrides(config: &mut Config) {
             ApiProvider::Huggingface => &mut providers.huggingface,
             ApiProvider::Together => &mut providers.together,
             ApiProvider::OpenaiCodex => &mut providers.openai_codex,
+            ApiProvider::Anthropic => &mut providers.anthropic,
         };
         let mut provider_headers = entry.http_headers.clone().unwrap_or_default();
         provider_headers.extend(headers);
@@ -3953,6 +4008,7 @@ fn apply_env_overrides(config: &mut Config) {
                 ApiProvider::Huggingface => &mut providers.huggingface,
                 ApiProvider::Together => &mut providers.together,
                 ApiProvider::OpenaiCodex => &mut providers.openai_codex,
+                ApiProvider::Anthropic => &mut providers.anthropic,
             };
             entry.model = Some(value);
         }
@@ -4277,6 +4333,7 @@ fn default_base_url_for_provider(provider: ApiProvider) -> &'static str {
         ApiProvider::Huggingface => DEFAULT_HUGGINGFACE_BASE_URL,
         ApiProvider::Together => DEFAULT_TOGETHER_BASE_URL,
         ApiProvider::OpenaiCodex => DEFAULT_OPENAI_CODEX_BASE_URL,
+        ApiProvider::Anthropic => DEFAULT_ANTHROPIC_BASE_URL,
     }
 }
 
@@ -4684,6 +4741,7 @@ fn merge_providers(
             deepseek_cn: merge_provider_config(base.deepseek_cn, override_cfg.deepseek_cn),
             nvidia_nim: merge_provider_config(base.nvidia_nim, override_cfg.nvidia_nim),
             openai: merge_provider_config(base.openai, override_cfg.openai),
+            anthropic: merge_provider_config(base.anthropic, override_cfg.anthropic),
             atlascloud: merge_provider_config(base.atlascloud, override_cfg.atlascloud),
             wanjie_ark: merge_provider_config(base.wanjie_ark, override_cfg.wanjie_ark),
             openrouter: merge_provider_config(base.openrouter, override_cfg.openrouter),
@@ -5152,6 +5210,9 @@ pub fn active_provider_has_env_api_key(config: &Config) -> bool {
                 || std::env::var("NVIDIA_NIM_API_KEY").is_ok_and(|k| !k.trim().is_empty())
         }
         ApiProvider::Openai => std::env::var("OPENAI_API_KEY").is_ok_and(|k| !k.trim().is_empty()),
+        ApiProvider::Anthropic => {
+            std::env::var("ANTHROPIC_API_KEY").is_ok_and(|k| !k.trim().is_empty())
+        }
         ApiProvider::Atlascloud => {
             std::env::var("ATLASCLOUD_API_KEY").is_ok_and(|k| !k.trim().is_empty())
         }
@@ -5216,6 +5277,7 @@ pub fn has_api_key_for(config: &Config, provider: ApiProvider) -> bool {
         ApiProvider::Deepseek | ApiProvider::DeepseekCN => "DEEPSEEK_API_KEY",
         ApiProvider::NvidiaNim => "NVIDIA_API_KEY",
         ApiProvider::Openai => "OPENAI_API_KEY",
+        ApiProvider::Anthropic => "ANTHROPIC_API_KEY",
         ApiProvider::Atlascloud => "ATLASCLOUD_API_KEY",
         ApiProvider::WanjieArk => "WANJIE_ARK_API_KEY",
         ApiProvider::Openrouter => "OPENROUTER_API_KEY",
@@ -5342,6 +5404,7 @@ pub fn save_api_key_for(provider: ApiProvider, api_key: &str) -> Result<PathBuf>
         }
         ApiProvider::NvidiaNim => "providers.nvidia_nim",
         ApiProvider::Openai => "providers.openai",
+        ApiProvider::Anthropic => "providers.anthropic",
         ApiProvider::Atlascloud => "providers.atlascloud",
         ApiProvider::WanjieArk => "providers.wanjie_ark",
         ApiProvider::Openrouter => "providers.openrouter",
@@ -5386,6 +5449,7 @@ pub fn save_api_key_for(provider: ApiProvider, api_key: &str) -> Result<PathBuf>
         }
         ApiProvider::NvidiaNim => "nvidia_nim",
         ApiProvider::Openai => "openai",
+        ApiProvider::Anthropic => "anthropic",
         ApiProvider::Atlascloud => "atlascloud",
         ApiProvider::WanjieArk => "wanjie_ark",
         ApiProvider::Openrouter => "openrouter",
@@ -5483,6 +5547,7 @@ fn provider_config_key(provider: ApiProvider) -> Result<&'static str> {
         }
         ApiProvider::NvidiaNim => Ok("nvidia_nim"),
         ApiProvider::Openai => Ok("openai"),
+        ApiProvider::Anthropic => Ok("anthropic"),
         ApiProvider::Atlascloud => Ok("atlascloud"),
         ApiProvider::WanjieArk => Ok("wanjie_ark"),
         ApiProvider::Volcengine => Ok("volcengine"),

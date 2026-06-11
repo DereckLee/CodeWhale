@@ -4998,7 +4998,10 @@ fn push_assistant_message(
 ) {
     let mut blocks = Vec::new();
     if let Some(thinking) = thinking {
-        blocks.push(ContentBlock::Thinking { thinking });
+        blocks.push(ContentBlock::Thinking {
+            thinking,
+            signature: None,
+        });
     }
     if !text.is_empty() {
         blocks.push(ContentBlock::Text {
@@ -7223,6 +7226,7 @@ fn render(f: &mut Frame, app: &mut App) {
             crate::config::ApiProvider::DeepseekCN => None,
             crate::config::ApiProvider::NvidiaNim => Some("NIM"),
             crate::config::ApiProvider::Openai => Some("OpenAI"),
+            crate::config::ApiProvider::Anthropic => Some("Claude"),
             crate::config::ApiProvider::Atlascloud => Some("Atlas"),
             crate::config::ApiProvider::WanjieArk => Some("Wanjie"),
             crate::config::ApiProvider::Volcengine => Some("Volc"),
@@ -8274,6 +8278,7 @@ async fn apply_provider_picker_api_key(
             ApiProvider::Huggingface => &mut providers.huggingface,
             ApiProvider::Together => &mut providers.together,
             ApiProvider::OpenaiCodex => &mut providers.openai_codex,
+            ApiProvider::Anthropic => &mut providers.anthropic,
         };
         entry.api_key = Some(api_key);
     }
@@ -8333,6 +8338,7 @@ fn set_provider_auth_mode_in_memory(config: &mut Config, provider: ApiProvider, 
         ApiProvider::Huggingface => &mut providers.huggingface,
         ApiProvider::Together => &mut providers.together,
         ApiProvider::OpenaiCodex => &mut providers.openai_codex,
+        ApiProvider::Anthropic => &mut providers.anthropic,
     };
     entry.auth_mode = Some(auth_mode);
 }
