@@ -1701,6 +1701,13 @@ mod tests {
             "Runtime Policy Reference must explain the per-turn tag format"
         );
         assert!(
+            text.contains("When this tag is the only new content in a turn")
+                && text.contains("do not initiate new edits, shell")
+                && text.contains("git commits, or sub-agent launches")
+                && text.contains("wait for the user's next message"),
+            "Runtime Policy Reference must pin the #3061 runtime-prompt-only guard"
+        );
+        assert!(
             text.contains("### Modes"),
             "Runtime Policy Reference must contain the Modes section"
         );
