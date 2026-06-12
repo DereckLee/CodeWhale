@@ -1543,6 +1543,11 @@ mod anthropic;
 mod chat;
 mod responses;
 
+fn extract_sse_data_value(line: &str) -> Option<&str> {
+    line.strip_prefix("data:")
+        .map(|value| value.strip_prefix(' ').unwrap_or(value))
+}
+
 pub(crate) use chat::{CacheWarmupKey, PromptInspection};
 
 pub(crate) fn inspect_prompt_for_request(request: &MessageRequest) -> PromptInspection {
@@ -3941,5 +3946,29 @@ mod tests {
             api_url_with_suffix("https://api.deepseek.com", "chat/completions", None),
             "https://api.deepseek.com/v1/chat/completions"
         );
+    }
+
+    #[test]
+    fn extract_sse_data_value_accepts_optional_space() {
+        assert_eq!(
+            extract_sse_data_value("data: {\"ok\":true}"),
+            Some("{\"ok\":true}")
+        );
+        assert_eq!(
+            extract_sse_data_value("data:{\"ok\":true}"),
+            Some("{\"ok\":true}")
+        );
+    }
+
+    #[test]
+    fn extract_sse_data_value_handles_done_marker() {
+        assert_eq!(extract_sse_data_value("data: [DONE]"), Some("[DONE]"));
+        assert_eq!(extract_sse_data_value("data:[DONE]"), Some("[DONE]"));
+    }
+
+    #[test]
+    fn extract_sse_data_value_rejects_non_data_lines() {
+        assert_eq!(extract_sse_data_value("event: message"), None);
+        assert_eq!(extract_sse_data_value(": heartbeat"), None);
     }
 }

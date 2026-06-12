@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SSE data lines without spaces (#3152).** Chat Completions, Responses, and
+  Anthropic stream readers now accept both `data: {...}` and `data:{...}` SSE
+  frames, matching the spec and preventing providers that omit the optional
+  space from streaming empty output. Thanks @wgeeker for the PR.
 - **SiliconFlow China provider config (#2893/#2895).** `siliconflow-CN`
   now reads its own `[providers.siliconflow_cn]` / `[providers.siliconflow-CN]`
   table and falls back to `[providers.siliconflow]` only for unset
