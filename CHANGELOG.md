@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `kimi-k2.7-code`, recognizes `kimi`/`kimi-k2` aliases for that model, keeps
   explicit `kimi-k2.6` selectable, and adds the OpenRouter
   `moonshotai/kimi-k2.7-code` registry row.
+- **Ephemeral generated project context (#3058).** Opening CodeWhale in a
+  directory with no instruction files now keeps the bounded generated project
+  overview in memory instead of creating `.codewhale/instructions.md`.
 - **Cursor-style activity metadata rows (#3146).** Dense successful tool-run
   summaries now render as a single muted `Explored ...` / `Updated metadata`
   row, include short command-family labels for successful generic verifier

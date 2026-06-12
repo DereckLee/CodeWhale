@@ -1088,9 +1088,9 @@ pub fn system_prompt_for_mode_with_context_skills_session_and_approval(
     };
 
     // 1–2. Mode prompt + project context.
-    // `load_project_context_with_parents` auto-generates .codewhale/instructions.md
-    // (or .deepseek/instructions.md as fallback) when no context file exists,
-    // so the fallback should always be available.
+    // `load_project_context_with_parents` generates an in-memory bounded
+    // overview when no context file exists, so the fallback should usually be
+    // available without writing project-local files.
     let mut full_prompt = if let Some(project_block) = project_context.as_system_block() {
         format!("{mode_prompt}\n\n{project_block}")
     } else {
