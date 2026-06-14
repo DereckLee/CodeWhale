@@ -84,7 +84,7 @@ cd codewhale-<platform>
 
 The **portable** Windows archive skips the install script — extract and run from any directory. The NSIS installer is currently unsigned and may trigger Windows SmartScreen until a signing certificate is wired into the release pipeline.
 
-Individual binaries are also attached below for scripting and the npm wrapper. The legacy npm package \`deepseek-tui\` is deprecated and is not republished. For migration from v0.8.x legacy binary names, see \`docs/REBRAND.md\`.
+Each platform also has **bare, unarchived** binaries attached below (\`codewhale-<platform>\` and \`codewhale-tui-<platform>\`) — these are what the npm wrapper and the in-app \`codewhale update\` download, whereas the \`.tar.gz\` / \`.zip\` archives above are the recommended manual download and additionally bundle an install script. The legacy npm package \`deepseek-tui\` is deprecated and is not republished. For migration from v0.8.x legacy binary names, see \`docs/REBRAND.md\`.
 
 ### Verify (recommended)
 

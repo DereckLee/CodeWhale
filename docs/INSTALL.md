@@ -258,6 +258,13 @@ Install into a NixOS module:
 
 ## 6. Manual download from GitHub Releases
 
+Each platform appears on the Releases page in **two forms** (this is intentional — see #3208):
+the **bare binaries** (`codewhale-<platform>` and `codewhale-tui-<platform>`, no extension) and a
+**`.tar.gz` / `.zip` archive** (`codewhale-<platform>.tar.gz`) that bundles the same two binaries
+plus an `install.sh`. The bare binaries are what the npm wrapper and the in-app `codewhale update`
+download; the archive is the easiest manual install (see §5). The steps below use the bare binaries
+directly.
+
 Grab the matching pair of binaries for your platform from the
 [Releases page](https://github.com/Hmbown/CodeWhale/releases) and drop them
 side by side into a directory on your `PATH` (e.g. `~/.local/bin`):
