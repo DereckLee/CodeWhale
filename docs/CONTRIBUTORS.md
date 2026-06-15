@@ -31,6 +31,9 @@ notes, and relevant issue/PR comments.
 <summary><strong>Forward track — recent v0.9 work (newest)</strong></summary>
 
 
+- **[greyfreedom](https://github.com/greyfreedom)** — atomic ask-only
+  permission-rule persistence so an execution-policy rule survives the write
+  that triggered the prompt (#3233)
 - **[xyuai](https://github.com/xyuai)** — canonical CodeWhale settings path,
   provider persistence, provider picker, logout-scope, and MiMo auth cleanup
   work (#2730, #2714, #2715, #2717, #2718)
