@@ -132,7 +132,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   }
 
   const highlights = isZh && dispatch.highlightsZh ? dispatch.highlightsZh : dispatch.highlights;
-  const releaseVersion = facts.version ?? "0.8.61";
+  const releaseVersion = facts.version ?? "0.8.62";
 
   return (
     <>

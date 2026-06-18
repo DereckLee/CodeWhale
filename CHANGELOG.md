@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.62] - 2026-06-17
 
-### Default model + sub-agent routing
+### Changed
 
 - **GLM-5.2 is now the default direct Z.AI model.** `DEFAULT_ZAI_MODEL` resolves
   to `GLM-5.2` in both `codewhale-tui` and `codewhale-config`; the `glm-5.1`
@@ -37,78 +37,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   architecture, integration, and final verification in the parent. The
   delegate skill examples now use provider-neutral `model_strength` instead of
   hardcoded DeepSeek model ids.
-
-### Agent synthesis guardrails
-
-- The base constitution now frames tools around sufficient evidence rather than
-  open-ended persistence: extra reads, searches, and delegation must target a
-  missing fact, and agents should answer with limits instead of broadening
-  searches indefinitely.
-- The runtime loop guard now blocks duplicate read-only/delegated calls earlier
-  and caps repeated broad lookup/delegation loops in a single turn with a
-  synthesis-forcing tool error. Guard metadata distinguishes exact duplicates
+- **Agent synthesis guardrails.** The base constitution now frames tools around
+  sufficient evidence rather than open-ended persistence: extra reads, searches,
+  and delegation must target a missing fact, and agents should answer with
+  limits instead of broadening searches indefinitely. The runtime loop guard
+  now blocks duplicate read-only/delegated calls earlier and caps repeated
+  broad lookup/delegation loops in a single turn with a synthesis-forcing tool
+  error. Guard metadata distinguishes exact duplicates
   (`identical_tool_call`) from no-progress loops (`no_progress_tool_loop`).
+- **Sub-agent handoff and visibility.** Direct sub-agent completions are drained
+  before the next parent model request, so finished children can wake the main
+  model promptly instead of waiting for an empty-tool-use branch or idle engine
+  path. Nested sub-agents now report completions to their immediate parent
+  inbox; the main model still receives only direct-child completions, avoiding
+  grandchild floods while preserving nested evidence flow. Sub-agent output
+  guidance now requires child-agent provenance when a sub-agent relies on a
+  child report: cite the child `agent_id` and the child's EVIDENCE line(s), and
+  do not present child findings as directly verified facts. The sidebar orders
+  sub-agents as a parent/child tree and annotates nested rows with parent and
+  depth information in hover text.
+- **Sub-agent summary provenance (#2652).** A sub-agent's free-text result is now
+  explicitly treated as an unverified self-report rather than confirmed
+  evidence. The completion sentinel carries `summary_kind: complete | truncated`
+  so the parent model can branch on whether it saw the full report or a clipped
+  excerpt. Short summaries (≤ 12,000 chars) get a soft "re-verify material
+  claims" suffix; longer ones are head+tail truncated with an honest marker
+  stating the elided middle is not retrievable via `retrieve_tool_result`.
+  Every summary therefore carries exactly one boundary marker, never both.
+- **Provider metadata centralization.** Provider env vars, config keys, aliases,
+  and auth hints are now resolved through the shared `ProviderMetadata` registry
+  across `codewhale-config`, `codewhale-tui`, and `codewhale-cli`, reducing drift
+  between the provider picker, `codewhale auth`, `doctor --json`, and setup
+  hints.
 
-### Sub-agent handoff and visibility
+### Added
 
-- Direct sub-agent completions are drained before the next parent model request,
-  so finished children can wake the main model promptly instead of waiting for
-  an empty-tool-use branch or idle engine path.
-- Nested sub-agents now report completions to their immediate parent inbox. The
-  main model still receives only direct-child completions, avoiding grandchild
-  floods while preserving nested evidence flow.
-- Sub-agent output guidance now requires child-agent provenance when a sub-agent
-  relies on a child report: cite the child `agent_id` and the child's EVIDENCE
-  line(s), and do not present child findings as directly verified facts.
-- The sidebar orders sub-agents as a parent/child tree and annotates nested rows
-  with parent and depth information in hover text.
-
-### TUI polish
-
-- The empty-startup welcome block is centered by the actual rendered text width,
-  fixing the off-center layout left over from the old sidebar-oriented welcome
-  composition.
-- Streaming HTTP body read errors now explain whether CodeWhale can retry before
-  output, or is surfacing a warning after partial output to avoid replaying and
-  duplicating streamed text.
-
-### Agent clarification questions (#3102)
-
-- Agents now have a first-class `request_user_input` tool to ask the user
-  structured clarifying questions through a modal UI surface instead of only
-  emitting a chat message and hoping the user notices. Mirrors the
-  approval/secret-request flow the harness already used for permissions.
-- The tool accepts 1-3 questions, each with a header, an id, 2-4 selectable
-  options (label + description), and `allow_free_text` / `multi_select` flags
-  (both default to `false` for back-compat). Input is validated up front with
-  actionable errors.
-- Wired across all layers: the `request_user_input` tool, engine handling
+- **Agent clarification questions (#3102).** Agents now have a first-class
+  `request_user_input` tool to ask the user structured clarifying questions
+  through a modal UI surface instead of only emitting a chat message and hoping
+  the user notices. Mirrors the approval/secret-request flow the harness
+  already used for permissions. The tool accepts 1-3 questions, each with a
+  header, an id, 2-4 selectable options (label + description), and
+  `allow_free_text` / `multi_select` flags (both default to `false` for
+  back-compat). Input is validated up front with actionable errors. Wired
+  across all layers: the `request_user_input` tool, engine handling
   (`turn_loop` → `approval`), an interactive TUI modal (`UserInputView`) with
   full keyboard navigation, and the runtime protocol
   (`EventFrame::UserInputRequest` + `AppRequest::SubmitUserInput`) so headless
   / app-server clients can answer programmatically. Parity tests cover the
   wire round-trip and the omitted-flags default.
+- **Transcript hyperlinks — out-of-band OSC 8 (#3029).** Clickable file /
+  file:line / URL links now reach the terminal through a column-drift-safe
+  path. Link payloads are embedded in-band by the markdown renderer, then
+  extracted out of the ratatui buffer cells and re-emitted out-of-band by
+  `ColorCompatBackend` — so the `ESC` bytes never occupy display columns or
+  corrupt selection. Supporting terminals get live hyperlinks; others see the
+  label text unchanged. Clipboard/selection extraction strips residual codes as
+  defense-in-depth.
+- **CodeWhale-only skill discovery gate (#3296).** New
+  `[skills].scan_codewhale_only = true` limits session-time skill discovery to
+  CodeWhale-owned roots (`<workspace>/.codewhale/skills`, `~/.codewhale/skills`,
+  and any explicit `skills_dir`) while ignoring cross-tool directories such as
+  `.claude/skills`, `.opencode/skills`, `.cursor/skills`, and `~/.agents/skills`.
+  The default remains the broad compatibility scan.
+- **Permission/ask runtime rules (#3295).** Sibling `permissions.toml` ask-only
+  rules are now loaded by the TUI engine and applied to `exec_shell` before
+  Auto/session approval shortcuts. Matching ask rules force an approval prompt
+  in otherwise auto-approved flows and are rejected under
+  `approval_mode = "never"`.
+- **Runtime API no-auth documentation.** `docs/RUNTIME_API.md` now documents
+  `codewhale app-server --insecure-no-auth` for loopback-only testing and warns
+  against combining it with `--mobile` on `0.0.0.0`.
 
-### Sub-agent summary provenance (#2652)
+### Fixed
 
-- A sub-agent's free-text result is now explicitly treated as an unverified
-  self-report rather than confirmed evidence. The completion sentinel carries
-  `summary_kind: complete | truncated` so the parent model can branch on
-  whether it saw the full report or a clipped excerpt.
-- Short summaries (≤ 12,000 chars) get a soft "re-verify material claims"
-  suffix; longer ones are head+tail truncated with an honest marker stating
-  the elided middle is not retrievable via `retrieve_tool_result`. Every
-  summary therefore carries exactly one boundary marker, never both.
-
-### Transcript hyperlinks — out-of-band OSC 8 (#3029)
-
-- Clickable file / file:line / URL links now reach the terminal through a
-  column-drift-safe path. Link payloads are embedded in-band by the markdown
-  renderer, then extracted out of the ratatui buffer cells and re-emitted
-  out-of-band by `ColorCompatBackend` — so the `ESC` bytes never occupy display
-  columns or corrupt selection. Supporting terminals get live hyperlinks;
-  others see the label text unchanged. Clipboard/selection extraction strips
-  residual codes as defense-in-depth.
+- **TUI polish.** The empty-startup welcome block is centered by the actual
+  rendered text width, fixing the off-center layout left over from the old
+  sidebar-oriented welcome composition. Streaming HTTP body read errors now
+  explain whether CodeWhale can retry before output, or is surfacing a warning
+  after partial output to avoid replaying and duplicating streamed text.
+- **Config comment preservation.** Rewriting `config.toml`, `settings.toml`, or
+  `tui.toml` now merges user comments and formatting back into the serialized
+  document; if comment merge fails, the write falls back to plain serialized
+  output rather than failing.
+- **Snapshot gate respected for per-tool snapshots (#3292).** Per-tool snapshots
+  now check `[snapshots].enabled` before writing, matching the existing
+  session-level gate.
+- **Poppler `pdftotext` detection (#1667).** The dependency resolver now probes
+  `pdftotext -v` instead of `--version`, because Poppler treats `--version` as
+  an input filename. Fixes detection on systems where only Poppler is installed.
+- **Plan confirmation checklist visibility.** The Plan-mode confirmation modal
+  now shows the active checklist under the plan details, so users can review the
+  concrete `checklist_write` work breakdown before accepting or revising a plan.
 
 ### Retroactive credits
 

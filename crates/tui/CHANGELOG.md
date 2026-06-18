@@ -9,30 +9,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.62] - 2026-06-17
 
-### Runtime guardrails
+### Changed
 
-- Tool persistence is now sufficiency-first: additional lookup/search/read or
-  delegation calls must target a missing fact, and agents are instructed to
-  answer with limits instead of broadening searches indefinitely.
-- The per-turn loop guard blocks duplicate read-only/delegated calls earlier
-  and caps repeated broad lookup/delegation loops with a synthesis-forcing tool
-  error.
+- **GLM-5.2 is now the default direct Z.AI model.** `DEFAULT_ZAI_MODEL` resolves
+  to `GLM-5.2` in both `codewhale-tui` and `codewhale-config`; the `glm-5.1`
+  alias still resolves to `GLM-5.1` (the defaulting was decoupled from the alias
+  arm so it no longer tracks the default). Docs and `config.example.toml` no
+  longer describe GLM-5.2 as an opt-in preview.
+- **GLM-5-Turbo registered as a real model** and wired as the faster/explore
+  sub-agent sibling for the GLM family: a `GLM-5.2` parent routes
+  faster/explore children to `GLM-5-Turbo` (direct Z.ai) and `z-ai/glm-5-turbo`
+  (OpenRouter), instead of down to GLM-5.1. GLM-5.1 and GLM-5-Turbo themselves
+  have no cheaper tier and keep children on the parent.
+- **`type: "explore"` sub-agents default to `model_strength: "faster"`.** Bounded
+  read-only lookup/search/status work now uses the cheaper same-family sibling
+  automatically, unless an explicit `model` or `model_strength: "same"` is
+  supplied. Non-explore roles keep the conservative `same` default.
+- **GPT-5.5 / OpenAI Codex faster route stays on GPT-5.5** with reasoning
+  resolved to `low` (the Codex Responses API has no true `off`, so the resolved
+  effort is now honest `low` rather than `off` silently rewritten). No
+  DeepSeek/GLM fallback is fabricated when no cheaper same-provider sibling
+  exists. DeepSeek Pro→Flash routing and its no-thinking faster lane are
+  unchanged.
+- **Base prompt / delegate skill guidance** updated to encourage parallel
+  read-only exploration (2-4 `type: "explore"` sub-agents) for broad repo,
+  version, branch, benchmark, and API-surface investigations, while keeping
+  architecture, integration, and final verification in the parent. The
+  delegate skill examples now use provider-neutral `model_strength` instead of
+  hardcoded DeepSeek model ids.
+- **Agent synthesis guardrails.** The base constitution now frames tools around
+  sufficient evidence rather than open-ended persistence: extra reads, searches,
+  and delegation must target a missing fact, and agents should answer with
+  limits instead of broadening searches indefinitely. The runtime loop guard
+  now blocks duplicate read-only/delegated calls earlier and caps repeated
+  broad lookup/delegation loops in a single turn with a synthesis-forcing tool
+  error. Guard metadata distinguishes exact duplicates
+  (`identical_tool_call`) from no-progress loops (`no_progress_tool_loop`).
+- **Sub-agent handoff and visibility.** Direct sub-agent completions are drained
+  before the next parent model request, so finished children can wake the main
+  model promptly instead of waiting for an empty-tool-use branch or idle engine
+  path. Nested sub-agents now report completions to their immediate parent
+  inbox; the main model still receives only direct-child completions, avoiding
+  grandchild floods while preserving nested evidence flow. Sub-agent output
+  guidance now requires child-agent provenance when a sub-agent relies on a
+  child report: cite the child `agent_id` and the child's EVIDENCE line(s), and
+  do not present child findings as directly verified facts. The sidebar orders
+  sub-agents as a parent/child tree and annotates nested rows with parent and
+  depth information in hover text.
+- **Sub-agent summary provenance (#2652).** A sub-agent's free-text result is now
+  explicitly treated as an unverified self-report rather than confirmed
+  evidence. The completion sentinel carries `summary_kind: complete | truncated`
+  so the parent model can branch on whether it saw the full report or a clipped
+  excerpt. Short summaries (≤ 12,000 chars) get a soft "re-verify material
+  claims" suffix; longer ones are head+tail truncated with an honest marker
+  stating the elided middle is not retrievable via `retrieve_tool_result`.
+  Every summary therefore carries exactly one boundary marker, never both.
+- **Provider metadata centralization.** Provider env vars, config keys, aliases,
+  and auth hints are now resolved through the shared `ProviderMetadata` registry
+  across `codewhale-config`, `codewhale-tui`, and `codewhale-cli`, reducing drift
+  between the provider picker, `codewhale auth`, `doctor --json`, and setup
+  hints.
 
-### Sub-agents
+### Added
 
-- Direct sub-agent completions are drained before the next parent model request,
-  and nested sub-agents report to their immediate parent inbox without flooding
-  the main model with grandchild completions.
-- The sidebar orders sub-agents as a parent/child tree and annotates nested rows
-  with parent/depth hover metadata.
-- Sub-agent output guidance now requires child-agent provenance when a sub-agent
-  relies on a child report.
+- **Agent clarification questions (#3102).** Agents now have a first-class
+  `request_user_input` tool to ask the user structured clarifying questions
+  through a modal UI surface instead of only emitting a chat message and hoping
+  the user notices. Mirrors the approval/secret-request flow the harness
+  already used for permissions. The tool accepts 1-3 questions, each with a
+  header, an id, 2-4 selectable options (label + description), and
+  `allow_free_text` / `multi_select` flags (both default to `false` for
+  back-compat). Input is validated up front with actionable errors. Wired
+  across all layers: the `request_user_input` tool, engine handling
+  (`turn_loop` → `approval`), an interactive TUI modal (`UserInputView`) with
+  full keyboard navigation, and the runtime protocol
+  (`EventFrame::UserInputRequest` + `AppRequest::SubmitUserInput`) so headless
+  / app-server clients can answer programmatically. Parity tests cover the
+  wire round-trip and the omitted-flags default.
+- **Transcript hyperlinks — out-of-band OSC 8 (#3029).** Clickable file /
+  file:line / URL links now reach the terminal through a column-drift-safe
+  path. Link payloads are embedded in-band by the markdown renderer, then
+  extracted out of the ratatui buffer cells and re-emitted out-of-band by
+  `ColorCompatBackend` — so the `ESC` bytes never occupy display columns or
+  corrupt selection. Supporting terminals get live hyperlinks; others see the
+  label text unchanged. Clipboard/selection extraction strips residual codes as
+  defense-in-depth.
+- **CodeWhale-only skill discovery gate (#3296).** New
+  `[skills].scan_codewhale_only = true` limits session-time skill discovery to
+  CodeWhale-owned roots (`<workspace>/.codewhale/skills`, `~/.codewhale/skills`,
+  and any explicit `skills_dir`) while ignoring cross-tool directories such as
+  `.claude/skills`, `.opencode/skills`, `.cursor/skills`, and `~/.agents/skills`.
+  The default remains the broad compatibility scan.
+- **Permission/ask runtime rules (#3295).** Sibling `permissions.toml` ask-only
+  rules are now loaded by the TUI engine and applied to `exec_shell` before
+  Auto/session approval shortcuts. Matching ask rules force an approval prompt
+  in otherwise auto-approved flows and are rejected under
+  `approval_mode = "never"`.
+- **Runtime API no-auth documentation.** `docs/RUNTIME_API.md` now documents
+  `codewhale app-server --insecure-no-auth` for loopback-only testing and warns
+  against combining it with `--mobile` on `0.0.0.0`.
 
-### TUI polish
+### Fixed
 
-- The empty-startup welcome block is centered by the actual rendered text width.
-- Streaming HTTP body read errors now explain retry/no-replay behavior based on
-  whether any output had already streamed.
+- **TUI polish.** The empty-startup welcome block is centered by the actual
+  rendered text width, fixing the off-center layout left over from the old
+  sidebar-oriented welcome composition. Streaming HTTP body read errors now
+  explain whether CodeWhale can retry before output, or is surfacing a warning
+  after partial output to avoid replaying and duplicating streamed text.
+- **Config comment preservation.** Rewriting `config.toml`, `settings.toml`, or
+  `tui.toml` now merges user comments and formatting back into the serialized
+  document; if comment merge fails, the write falls back to plain serialized
+  output rather than failing.
+- **Snapshot gate respected for per-tool snapshots (#3292).** Per-tool snapshots
+  now check `[snapshots].enabled` before writing, matching the existing
+  session-level gate.
+- **Poppler `pdftotext` detection (#1667).** The dependency resolver now probes
+  `pdftotext -v` instead of `--version`, because Poppler treats `--version` as
+  an input filename. Fixes detection on systems where only Poppler is installed.
+- **Plan confirmation checklist visibility.** The Plan-mode confirmation modal
+  now shows the active checklist under the plan details, so users can review the
+  concrete `checklist_write` work breakdown before accepting or revising a plan.
 
 ### Retroactive credits
 
@@ -1341,125 +1437,6 @@ work harvested into this release.
 Thanks also to reporters and verification helpers whose issues shaped the
 release: **@A-Corner** (#2438), **@taiwan988** (#2483), **@AiurArtanis**
 (#2489), and **@Hmbown** (#2481).
-
-## [0.8.48] - 2026-05-31
-
-### Added
-
-- **Recent large OpenRouter model presets.** Added completions, aliases,
-  routing metadata, and docs for Arcee Trinity Large Thinking,
-  MiniMax M3, Xiaomi MiMo v2.5, Qwen 3.6 open-weight models, Kimi K2.6,
-  GLM 5.1, Tencent Hy3, Gemma 4, and Nemotron (#2461).
-- **Provider and web-search expansion.** Added Xiaomi MiMo provider support,
-  SiliconFlow, AtlasCloud static models, Volcengine Ark search, Baidu AI
-  Search, provider-picker coverage, and richer custom-provider docs
-  (#2246, #1868, #2421, #2429, #2371, #2394, #2287).
-- **Workflow and tool ergonomics.** Added the external-tool abstraction,
-  pluggable TUI tool registry, custom slash-command allowed-tools enforcement,
-  opt-in Unix socket hook sink, message-submit transform hooks, tool-cache
-  introspection, and cache warmup-key tracking (#2294, #2420, #2326, #2430,
-  #2434, #2423, #2424).
-- **TUI workflow features.** Added `/purge`, `/hunt`, thinking fold/unfold,
-  terminal-transparent/Solarized Light/Claude themes, footer branch display,
-  macOS notifications, intent summaries before approval prompts, and the
-  mobile runtime smoke/QR workflow (#2387, #2306, #2385, #2276, #2270, #2267,
-  #2347, #2260, #2389, #2403).
-- **Platform and localization coverage.** Added RISC-V prebuilt-binary
-  support, Vietnamese localization, Java/Vue language-server defaults, runtime
-  event envelopes, task migration/env isolation fixes, and state-message
-  parent IDs for future forks (#2383, #2358, #2367, #2252, #2272, #2308).
-
-### Removed
-
-- **Qwen 3.7 Max OpenRouter preset.** Removed from the model registry, docs,
-  and examples. Qwen 3.7 Max is a hosted model, not open-source; the preset
-  will return when an open-weight Qwen 3.7 release ships.
-
-### Changed
-
-- **Release hardening.** CI now runs clippy/docs checks, web frontend lint and
-  type checks, provider-registry drift checks, broader crate docs, and a large
-  unit-test pass across core, MCP, TUI core, app-server, and web helpers
-  (#2443, #2444, #2274, #2446-#2460, #2440, #2441, #2450, #2448, #2454).
-- **Prompt, context, and model routing behavior.** Stabilized project-context
-  pack ordering, exposed the auto route in turn metadata, allowed embedders to
-  override or inline constitutional instructions, moved volatile environment
-  context below the prompt boundary, and used the effective model for
-  compaction budgeting (#2418, #2410, #2356, #2311, #2314, #2437).
-- **Execution policy foundation.** Added typed ask-rule groundwork and kept
-  `task_shell_start` gated behind `allow_shell`, preparing the permission UI
-  path without broadening default shell access (#2404, #2384).
-
-### Fixed
-
-- **Windows and shell reliability.** Suppressed alt-screen logging on Windows,
-  added the Windows batch launcher path, kept task shell tools eagerly loaded,
-  loaded exec-shell companion tools consistently, covered controlling-terminal
-  behavior, and improved shell tool availability errors (#2259, #2295, #1861,
-  #2271, #2331, #2414, #2412).
-- **Session and transcript durability.** Fixed hidden-worktree discovery
-  saturation, stalled in-progress turn recovery, session persistence
-  truncation, cached-transcript user-message highlighting, large tool-output
-  receipting, session-detail block serialization, and deterministic composer
-  history flushing (#2273, #2329, #2283, #2395, #2386, #2297, #2265, #2375).
-- **Provider and UI polish.** Accepted custom model IDs in `/model` for
-  non-DeepSeek providers, fixed Feishu per-chat model switching, localized
-  context-menu labels, updated terminal tab naming, kept picker selections
-  visible, allowed slash-space composer messages, and improved PDF text
-  cleanup (#2280, #2149, #2320, #2319, #2324, #2316, #2266).
-- **Security and dependency hygiene.** Bumped `tar` and `qs`, trusted fake-IP
-  placeholder ranges only when explicitly configured, decoded Bing result URL
-  entities, fixed legacy MCP SSE connections, and replaced manual tool error
-  display code with `thiserror` derives (#2364, #2425, #2355, #2245, #2301,
-  #2442).
-
-### Community
-
-Thanks to contributors whose PRs landed or were harvested in this release:
-**@cy2311** (#1861),
-**@LING71671** (#1902, #2287, #2292),
-**@axobase001** (#1968, #2296, #2297, #2298),
-**@dzyuan** (#1993),
-**@mvanhorn** (#2107, #2236),
-**@malsony** (#2129),
-**@gaord** (#2133, #2265, #2285),
-**@yuanchenglu** (#2149),
-**@idling11** (#2161, #2266, #2306),
-**@h3c-hexin** (#2245, #2311, #2313, #2314, #2354, #2355, #2356),
-**@AdityaVG13** (#2246),
-**@Sskift** (#2248),
-**@cyq1017** (#2252, #2332, #2375),
-**@HUQIANTAO** (#2257, #2267, #2283, #2384, #2385, #2389, #2403, #2440-#2458, #2460),
-**@New2Niu** (#2260),
-**@AiurArtanis** (#2270),
-**@Lee-take** (#2272),
-**@nightt5879** (#2274, #2344, #2347, #2373),
-**@AresNing** (#2278, #2318/#2434),
-**@AccMoment** (#2281),
-**@reidliu41** (#2291, #2316, #2324, #2357, #2366, #2386, #2431),
-**@aboimpinto** (#2290, #2294, #2295, #2326, #2433),
-**@zhuangbiaowei** (#2301),
-**@donglovejava** (#2302, #2329, #2330, #2331),
-**@hongqitai** (#2308, #2432),
-**@zlh124** (#2319, #2320, #2325),
-**@encyc** (#2336, #2338),
-**@Implementist** (#2426/#2429, #2439),
-**@lihuan215** (#2333/#2430),
-**@LeoAlex0** (#2388, #2395),
-**@jimmyzhuu** (#2371),
-**@rockyzhang** (#2383),
-**@mo-vic** (#2387),
-**@hufanexplore** (#2367),
-**@hoclaptrinh33** (#2358),
-and **@BryonGo** (#2437).
-
-Thanks also to reporters and verification helpers whose issues, patches,
-screenshots, logs, or retest requests shaped this release: **@buko** (#2359,
-#2360, #2369, #2469), **@yyyCode**, **@gaslebinh-glitch**, **@Dr3259**,
-**@lpeng1711694086-lang**, **@VerrPower**, **@yan-zay**, **@jretz**,
-**@Neo-millunnium**, **@caeserchen**, **@T-Phuong-Nguyen**, **@zhyuzhyu**,
-**@0gl20shk0sbt36**, **@hatakes**, **@goodvecn-dev**, **@bevis-wong**,
-**@PurplePulse**, and **@nbiish**.
 
 ---
 

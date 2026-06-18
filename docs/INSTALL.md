@@ -40,7 +40,7 @@ systems such as Alpine should use [Build from source](#7-build-from-source).
 ### Linux glibc floor
 
 The official Linux GNU release assets require the glibc version used by the
-release builder. In the current v0.8.61 release lane, native Linux GNU assets
+release builder. In the current v0.8.62 release lane, native Linux GNU assets
 are built on Ubuntu 24.04 and can require `GLIBC_2.39`. Ubuntu 22.04 ships
 glibc 2.35, so those binaries fail with errors such as:
 
@@ -111,11 +111,11 @@ a download sourced from an impersonating repository or mirror.
 ## 3. Install via npm
 
 npm is the recommended install path. The `codewhale` wrapper is published at
-v0.8.61 (Node 18+; wrapper available for v0.8.56 and later).
+v0.8.62 (Node 18+; wrapper available for v0.8.56 and later).
 
 ```bash
 npm install -g codewhale
-codewhale --version   # 0.8.61
+codewhale --version   # 0.8.62
 ```
 
 `postinstall` downloads the right pair of binaries from the matching GitHub
