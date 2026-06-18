@@ -661,6 +661,245 @@ pub struct ConfigToml {
     pub extras: BTreeMap<String, toml::Value>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProviderConfigField {
+    ApiKey,
+    BaseUrl,
+    Model,
+    Mode,
+    AuthMode,
+    InsecureSkipTlsVerify,
+    HttpHeaders,
+    PathSuffix,
+}
+
+impl ProviderConfigField {
+    fn parse(key: &str) -> Option<Self> {
+        Some(match key {
+            "api_key" => Self::ApiKey,
+            "base_url" => Self::BaseUrl,
+            "model" => Self::Model,
+            "mode" => Self::Mode,
+            "auth_mode" => Self::AuthMode,
+            "insecure_skip_tls_verify" => Self::InsecureSkipTlsVerify,
+            "http_headers" => Self::HttpHeaders,
+            "path_suffix" => Self::PathSuffix,
+            _ => return None,
+        })
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::ApiKey => "api_key",
+            Self::BaseUrl => "base_url",
+            Self::Model => "model",
+            Self::Mode => "mode",
+            Self::AuthMode => "auth_mode",
+            Self::InsecureSkipTlsVerify => "insecure_skip_tls_verify",
+            Self::HttpHeaders => "http_headers",
+            Self::PathSuffix => "path_suffix",
+        }
+    }
+}
+
+fn parse_provider_config_key(key: &str) -> Option<(ProviderKind, ProviderConfigField)> {
+    let suffix = key.strip_prefix("providers.")?;
+    let (provider_key, field_key) = suffix.split_once('.')?;
+    let field = ProviderConfigField::parse(field_key)?;
+    let provider = ProviderKind::ALL
+        .iter()
+        .copied()
+        .find(|kind| kind.provider().provider_config_key() == provider_key)?;
+    Some((provider, field))
+}
+
+fn provider_config_key(provider: ProviderKind, field: ProviderConfigField) -> String {
+    format!(
+        "providers.{}.{}",
+        provider.provider().provider_config_key(),
+        field.key()
+    )
+}
+
+fn get_provider_config_value(
+    config: &ProviderConfigToml,
+    field: ProviderConfigField,
+) -> Option<String> {
+    match field {
+        ProviderConfigField::ApiKey => config.api_key.clone(),
+        ProviderConfigField::BaseUrl => config.base_url.clone(),
+        ProviderConfigField::Model => config.model.clone(),
+        ProviderConfigField::Mode => config.mode.clone(),
+        ProviderConfigField::AuthMode => config.auth_mode.clone(),
+        ProviderConfigField::InsecureSkipTlsVerify => config
+            .insecure_skip_tls_verify
+            .map(|value| value.to_string()),
+        ProviderConfigField::HttpHeaders => serialize_http_headers(&config.http_headers),
+        ProviderConfigField::PathSuffix => config.path_suffix.clone(),
+    }
+}
+
+fn set_provider_config_value(
+    config: &mut ConfigToml,
+    provider: ProviderKind,
+    field: ProviderConfigField,
+    value: &str,
+) -> Result<()> {
+    match field {
+        ProviderConfigField::ApiKey => {
+            let value = value.to_string();
+            config.providers.for_provider_mut(provider).api_key = Some(value.clone());
+            if provider == ProviderKind::Deepseek {
+                config.api_key = Some(value);
+            }
+        }
+        ProviderConfigField::BaseUrl => {
+            let value = value.to_string();
+            config.providers.for_provider_mut(provider).base_url = Some(value.clone());
+            if provider == ProviderKind::Deepseek {
+                config.base_url = Some(value);
+            }
+        }
+        ProviderConfigField::Model => {
+            let value = value.to_string();
+            config.providers.for_provider_mut(provider).model = Some(value.clone());
+            if provider == ProviderKind::Deepseek {
+                config.default_text_model = Some(value);
+            }
+        }
+        ProviderConfigField::Mode => {
+            config.providers.for_provider_mut(provider).mode = Some(value.to_string());
+        }
+        ProviderConfigField::AuthMode => {
+            config.providers.for_provider_mut(provider).auth_mode = Some(value.to_string());
+        }
+        ProviderConfigField::InsecureSkipTlsVerify => {
+            config
+                .providers
+                .for_provider_mut(provider)
+                .insecure_skip_tls_verify = Some(parse_bool(value)?);
+        }
+        ProviderConfigField::HttpHeaders => {
+            let headers = parse_http_headers(value)?;
+            config.providers.for_provider_mut(provider).http_headers = headers.clone();
+            if provider == ProviderKind::Deepseek {
+                config.http_headers = headers;
+            }
+        }
+        ProviderConfigField::PathSuffix => {
+            config.providers.for_provider_mut(provider).path_suffix = Some(value.to_string());
+        }
+    }
+    Ok(())
+}
+
+fn unset_provider_config_value(
+    config: &mut ConfigToml,
+    provider: ProviderKind,
+    field: ProviderConfigField,
+) {
+    match field {
+        ProviderConfigField::ApiKey => {
+            config.providers.for_provider_mut(provider).api_key = None;
+            if provider == ProviderKind::Deepseek {
+                config.api_key = None;
+            }
+        }
+        ProviderConfigField::BaseUrl => {
+            config.providers.for_provider_mut(provider).base_url = None;
+            if provider == ProviderKind::Deepseek {
+                config.base_url = None;
+            }
+        }
+        ProviderConfigField::Model => {
+            config.providers.for_provider_mut(provider).model = None;
+            if provider == ProviderKind::Deepseek {
+                config.default_text_model = None;
+            }
+        }
+        ProviderConfigField::Mode => {
+            config.providers.for_provider_mut(provider).mode = None;
+        }
+        ProviderConfigField::AuthMode => {
+            config.providers.for_provider_mut(provider).auth_mode = None;
+        }
+        ProviderConfigField::InsecureSkipTlsVerify => {
+            config
+                .providers
+                .for_provider_mut(provider)
+                .insecure_skip_tls_verify = None;
+        }
+        ProviderConfigField::HttpHeaders => {
+            config
+                .providers
+                .for_provider_mut(provider)
+                .http_headers
+                .clear();
+            if provider == ProviderKind::Deepseek {
+                config.http_headers.clear();
+            }
+        }
+        ProviderConfigField::PathSuffix => {
+            config.providers.for_provider_mut(provider).path_suffix = None;
+        }
+    }
+}
+
+fn insert_provider_config_values(
+    out: &mut BTreeMap<String, String>,
+    provider: ProviderKind,
+    config: &ProviderConfigToml,
+) {
+    if let Some(v) = config.api_key.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::ApiKey),
+            redact_secret(v),
+        );
+    }
+    if let Some(v) = config.base_url.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::BaseUrl),
+            v.clone(),
+        );
+    }
+    if let Some(v) = config.model.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::Model),
+            v.clone(),
+        );
+    }
+    if let Some(v) = config.mode.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::Mode),
+            v.clone(),
+        );
+    }
+    if let Some(v) = config.auth_mode.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::AuthMode),
+            v.clone(),
+        );
+    }
+    if let Some(v) = config.insecure_skip_tls_verify {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::InsecureSkipTlsVerify),
+            v.to_string(),
+        );
+    }
+    if let Some(v) = serialize_http_headers(&config.http_headers) {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::HttpHeaders),
+            v,
+        );
+    }
+    if let Some(v) = config.path_suffix.as_ref() {
+        out.insert(
+            provider_config_key(provider, ProviderConfigField::PathSuffix),
+            v.clone(),
+        );
+    }
+}
+
 impl ConfigToml {
     /// Resolve the first configured harness profile for a provider/model route.
     ///
@@ -1392,6 +1631,10 @@ impl ConfigToml {
 
     #[must_use]
     pub fn get_value(&self, key: &str) -> Option<String> {
+        if let Some((provider, field)) = parse_provider_config_key(key) {
+            return get_provider_config_value(self.providers.for_provider(provider), field);
+        }
+
         match key {
             "provider" => Some(self.provider.as_str().to_string()),
             "api_key" => self.api_key.clone(),
@@ -1412,122 +1655,6 @@ impl ConfigToml {
                 .as_ref()
                 .and_then(|sinks| sinks.unix_socket_path.as_ref())
                 .map(|path| path.display().to_string()),
-            "providers.deepseek.api_key" => self.providers.deepseek.api_key.clone(),
-            "providers.deepseek.base_url" => self.providers.deepseek.base_url.clone(),
-            "providers.deepseek.model" => self.providers.deepseek.model.clone(),
-            "providers.deepseek.http_headers" => {
-                serialize_http_headers(&self.providers.deepseek.http_headers)
-            }
-            "providers.nvidia_nim.api_key" => self.providers.nvidia_nim.api_key.clone(),
-            "providers.nvidia_nim.base_url" => self.providers.nvidia_nim.base_url.clone(),
-            "providers.nvidia_nim.model" => self.providers.nvidia_nim.model.clone(),
-            "providers.nvidia_nim.http_headers" => {
-                serialize_http_headers(&self.providers.nvidia_nim.http_headers)
-            }
-            "providers.openai.api_key" => self.providers.openai.api_key.clone(),
-            "providers.openai.base_url" => self.providers.openai.base_url.clone(),
-            "providers.openai.model" => self.providers.openai.model.clone(),
-            "providers.openai.http_headers" => {
-                serialize_http_headers(&self.providers.openai.http_headers)
-            }
-            "providers.atlascloud.api_key" => self.providers.atlascloud.api_key.clone(),
-            "providers.atlascloud.base_url" => self.providers.atlascloud.base_url.clone(),
-            "providers.atlascloud.model" => self.providers.atlascloud.model.clone(),
-            "providers.atlascloud.http_headers" => {
-                serialize_http_headers(&self.providers.atlascloud.http_headers)
-            }
-            "providers.wanjie_ark.api_key" => self.providers.wanjie_ark.api_key.clone(),
-            "providers.wanjie_ark.base_url" => self.providers.wanjie_ark.base_url.clone(),
-            "providers.wanjie_ark.model" => self.providers.wanjie_ark.model.clone(),
-            "providers.volcengine.api_key" => self.providers.volcengine.api_key.clone(),
-            "providers.volcengine.base_url" => self.providers.volcengine.base_url.clone(),
-            "providers.volcengine.model" => self.providers.volcengine.model.clone(),
-            "providers.volcengine.http_headers" => {
-                serialize_http_headers(&self.providers.volcengine.http_headers)
-            }
-            "providers.wanjie_ark.http_headers" => {
-                serialize_http_headers(&self.providers.wanjie_ark.http_headers)
-            }
-            "providers.openrouter.api_key" => self.providers.openrouter.api_key.clone(),
-            "providers.openrouter.base_url" => self.providers.openrouter.base_url.clone(),
-            "providers.openrouter.model" => self.providers.openrouter.model.clone(),
-            "providers.openrouter.http_headers" => {
-                serialize_http_headers(&self.providers.openrouter.http_headers)
-            }
-            "providers.xiaomi_mimo.api_key" => self.providers.xiaomi_mimo.api_key.clone(),
-            "providers.xiaomi_mimo.base_url" => self.providers.xiaomi_mimo.base_url.clone(),
-            "providers.xiaomi_mimo.model" => self.providers.xiaomi_mimo.model.clone(),
-            "providers.xiaomi_mimo.mode" => self.providers.xiaomi_mimo.mode.clone(),
-            "providers.xiaomi_mimo.http_headers" => {
-                serialize_http_headers(&self.providers.xiaomi_mimo.http_headers)
-            }
-            "providers.novita.api_key" => self.providers.novita.api_key.clone(),
-            "providers.novita.base_url" => self.providers.novita.base_url.clone(),
-            "providers.novita.model" => self.providers.novita.model.clone(),
-            "providers.novita.http_headers" => {
-                serialize_http_headers(&self.providers.novita.http_headers)
-            }
-            "providers.fireworks.api_key" => self.providers.fireworks.api_key.clone(),
-            "providers.fireworks.base_url" => self.providers.fireworks.base_url.clone(),
-            "providers.fireworks.model" => self.providers.fireworks.model.clone(),
-            "providers.fireworks.http_headers" => {
-                serialize_http_headers(&self.providers.fireworks.http_headers)
-            }
-            "providers.siliconflow.api_key" => self.providers.siliconflow.api_key.clone(),
-            "providers.siliconflow.base_url" => self.providers.siliconflow.base_url.clone(),
-            "providers.siliconflow.model" => self.providers.siliconflow.model.clone(),
-            "providers.siliconflow.http_headers" => {
-                serialize_http_headers(&self.providers.siliconflow.http_headers)
-            }
-            "providers.siliconflow_cn.api_key" => self.providers.siliconflow_cn.api_key.clone(),
-            "providers.siliconflow_cn.base_url" => self.providers.siliconflow_cn.base_url.clone(),
-            "providers.siliconflow_cn.model" => self.providers.siliconflow_cn.model.clone(),
-            "providers.siliconflow_cn.http_headers" => {
-                serialize_http_headers(&self.providers.siliconflow_cn.http_headers)
-            }
-            "providers.arcee.api_key" => self.providers.arcee.api_key.clone(),
-            "providers.arcee.base_url" => self.providers.arcee.base_url.clone(),
-            "providers.arcee.model" => self.providers.arcee.model.clone(),
-            "providers.arcee.http_headers" => {
-                serialize_http_headers(&self.providers.arcee.http_headers)
-            }
-            "providers.moonshot.api_key" => self.providers.moonshot.api_key.clone(),
-            "providers.moonshot.base_url" => self.providers.moonshot.base_url.clone(),
-            "providers.moonshot.model" => self.providers.moonshot.model.clone(),
-            "providers.moonshot.auth_mode" => self.providers.moonshot.auth_mode.clone(),
-            "providers.moonshot.http_headers" => {
-                serialize_http_headers(&self.providers.moonshot.http_headers)
-            }
-            "providers.sglang.api_key" => self.providers.sglang.api_key.clone(),
-            "providers.sglang.base_url" => self.providers.sglang.base_url.clone(),
-            "providers.sglang.model" => self.providers.sglang.model.clone(),
-            "providers.sglang.http_headers" => {
-                serialize_http_headers(&self.providers.sglang.http_headers)
-            }
-            "providers.vllm.api_key" => self.providers.vllm.api_key.clone(),
-            "providers.vllm.base_url" => self.providers.vllm.base_url.clone(),
-            "providers.vllm.model" => self.providers.vllm.model.clone(),
-            "providers.vllm.http_headers" => {
-                serialize_http_headers(&self.providers.vllm.http_headers)
-            }
-            "providers.ollama.api_key" => self.providers.ollama.api_key.clone(),
-            "providers.ollama.base_url" => self.providers.ollama.base_url.clone(),
-            "providers.ollama.model" => self.providers.ollama.model.clone(),
-            "providers.ollama.http_headers" => {
-                serialize_http_headers(&self.providers.ollama.http_headers)
-            }
-            "providers.huggingface.api_key" => self.providers.huggingface.api_key.clone(),
-            "providers.huggingface.base_url" => self.providers.huggingface.base_url.clone(),
-            "providers.huggingface.model" => self.providers.huggingface.model.clone(),
-            "providers.huggingface.http_headers" => {
-                serialize_http_headers(&self.providers.huggingface.http_headers)
-            }
-            "providers.together.api_key" => self.providers.together.api_key.clone(),
-            "providers.together.base_url" => self.providers.together.base_url.clone(),
-            "providers.together.model" => self.providers.together.model.clone(),
-            "providers.together.http_headers" => {
-                serialize_http_headers(&self.providers.together.http_headers)
-            }
             _ => self.extras.get(key).map(toml::Value::to_string),
         }
     }
@@ -1544,6 +1671,10 @@ impl ConfigToml {
     }
 
     pub fn set_value(&mut self, key: &str, value: &str) -> Result<()> {
+        if let Some((provider, field)) = parse_provider_config_key(key) {
+            return set_provider_config_value(self, provider, field, value);
+        }
+
         match key {
             "provider" => {
                 self.provider = ProviderKind::parse(value).with_context(|| {
@@ -1572,242 +1703,6 @@ impl ConfigToml {
                     .get_or_insert_with(HookSinksToml::default)
                     .unix_socket_path = Some(PathBuf::from(value));
             }
-            "providers.deepseek.api_key" => {
-                let value = value.to_string();
-                self.providers.deepseek.api_key = Some(value.clone());
-                self.api_key = Some(value);
-            }
-            "providers.deepseek.base_url" => {
-                let value = value.to_string();
-                self.providers.deepseek.base_url = Some(value.clone());
-                self.base_url = Some(value);
-            }
-            "providers.deepseek.model" => {
-                let value = value.to_string();
-                self.providers.deepseek.model = Some(value.clone());
-                self.default_text_model = Some(value);
-            }
-            "providers.deepseek.http_headers" => {
-                let headers = parse_http_headers(value)?;
-                self.providers.deepseek.http_headers = headers.clone();
-                self.http_headers = headers;
-            }
-            "providers.openai.api_key" => self.providers.openai.api_key = Some(value.to_string()),
-            "providers.openai.base_url" => self.providers.openai.base_url = Some(value.to_string()),
-            "providers.openai.model" => self.providers.openai.model = Some(value.to_string()),
-            "providers.openai.http_headers" => {
-                self.providers.openai.http_headers = parse_http_headers(value)?;
-            }
-            "providers.atlascloud.api_key" => {
-                self.providers.atlascloud.api_key = Some(value.to_string());
-            }
-            "providers.atlascloud.base_url" => {
-                self.providers.atlascloud.base_url = Some(value.to_string());
-            }
-            "providers.atlascloud.model" => {
-                self.providers.atlascloud.model = Some(value.to_string());
-            }
-            "providers.atlascloud.http_headers" => {
-                self.providers.atlascloud.http_headers = parse_http_headers(value)?;
-            }
-            "providers.wanjie_ark.api_key" => {
-                self.providers.wanjie_ark.api_key = Some(value.to_string());
-            }
-            "providers.wanjie_ark.base_url" => {
-                self.providers.wanjie_ark.base_url = Some(value.to_string());
-            }
-            "providers.wanjie_ark.model" => {
-                self.providers.wanjie_ark.model = Some(value.to_string());
-            }
-            "providers.volcengine.api_key" => {
-                self.providers.volcengine.api_key = Some(value.to_string());
-            }
-            "providers.volcengine.base_url" => {
-                self.providers.volcengine.base_url = Some(value.to_string());
-            }
-            "providers.volcengine.model" => {
-                self.providers.volcengine.model = Some(value.to_string());
-            }
-            "providers.volcengine.http_headers" => {
-                self.providers.volcengine.http_headers = parse_http_headers(value)?;
-            }
-            "providers.wanjie_ark.http_headers" => {
-                self.providers.wanjie_ark.http_headers = parse_http_headers(value)?;
-            }
-            "providers.nvidia_nim.api_key" => {
-                self.providers.nvidia_nim.api_key = Some(value.to_string());
-            }
-            "providers.nvidia_nim.base_url" => {
-                self.providers.nvidia_nim.base_url = Some(value.to_string());
-            }
-            "providers.nvidia_nim.model" => {
-                self.providers.nvidia_nim.model = Some(value.to_string());
-            }
-            "providers.nvidia_nim.http_headers" => {
-                self.providers.nvidia_nim.http_headers = parse_http_headers(value)?;
-            }
-            "providers.openrouter.api_key" => {
-                self.providers.openrouter.api_key = Some(value.to_string());
-            }
-            "providers.openrouter.base_url" => {
-                self.providers.openrouter.base_url = Some(value.to_string());
-            }
-            "providers.openrouter.model" => {
-                self.providers.openrouter.model = Some(value.to_string());
-            }
-            "providers.openrouter.http_headers" => {
-                self.providers.openrouter.http_headers = parse_http_headers(value)?;
-            }
-            "providers.xiaomi_mimo.api_key" => {
-                self.providers.xiaomi_mimo.api_key = Some(value.to_string());
-            }
-            "providers.xiaomi_mimo.base_url" => {
-                self.providers.xiaomi_mimo.base_url = Some(value.to_string());
-            }
-            "providers.xiaomi_mimo.model" => {
-                self.providers.xiaomi_mimo.model = Some(value.to_string());
-            }
-            "providers.xiaomi_mimo.mode" => {
-                self.providers.xiaomi_mimo.mode = Some(value.to_string());
-            }
-            "providers.xiaomi_mimo.http_headers" => {
-                self.providers.xiaomi_mimo.http_headers = parse_http_headers(value)?;
-            }
-            "providers.novita.api_key" => {
-                self.providers.novita.api_key = Some(value.to_string());
-            }
-            "providers.novita.base_url" => {
-                self.providers.novita.base_url = Some(value.to_string());
-            }
-            "providers.novita.model" => {
-                self.providers.novita.model = Some(value.to_string());
-            }
-            "providers.novita.http_headers" => {
-                self.providers.novita.http_headers = parse_http_headers(value)?;
-            }
-            "providers.fireworks.api_key" => {
-                self.providers.fireworks.api_key = Some(value.to_string());
-            }
-            "providers.fireworks.base_url" => {
-                self.providers.fireworks.base_url = Some(value.to_string());
-            }
-            "providers.fireworks.model" => {
-                self.providers.fireworks.model = Some(value.to_string());
-            }
-            "providers.fireworks.http_headers" => {
-                self.providers.fireworks.http_headers = parse_http_headers(value)?;
-            }
-            "providers.siliconflow.api_key" => {
-                self.providers.siliconflow.api_key = Some(value.to_string());
-            }
-            "providers.siliconflow.base_url" => {
-                self.providers.siliconflow.base_url = Some(value.to_string());
-            }
-            "providers.siliconflow.model" => {
-                self.providers.siliconflow.model = Some(value.to_string());
-            }
-            "providers.siliconflow.http_headers" => {
-                self.providers.siliconflow.http_headers = parse_http_headers(value)?;
-            }
-            "providers.siliconflow_cn.api_key" => {
-                self.providers.siliconflow_cn.api_key = Some(value.to_string());
-            }
-            "providers.siliconflow_cn.base_url" => {
-                self.providers.siliconflow_cn.base_url = Some(value.to_string());
-            }
-            "providers.siliconflow_cn.model" => {
-                self.providers.siliconflow_cn.model = Some(value.to_string());
-            }
-            "providers.siliconflow_cn.http_headers" => {
-                self.providers.siliconflow_cn.http_headers = parse_http_headers(value)?;
-            }
-            "providers.arcee.api_key" => {
-                self.providers.arcee.api_key = Some(value.to_string());
-            }
-            "providers.arcee.base_url" => {
-                self.providers.arcee.base_url = Some(value.to_string());
-            }
-            "providers.arcee.model" => {
-                self.providers.arcee.model = Some(value.to_string());
-            }
-            "providers.arcee.http_headers" => {
-                self.providers.arcee.http_headers = parse_http_headers(value)?;
-            }
-            "providers.moonshot.api_key" => {
-                self.providers.moonshot.api_key = Some(value.to_string());
-            }
-            "providers.moonshot.base_url" => {
-                self.providers.moonshot.base_url = Some(value.to_string());
-            }
-            "providers.moonshot.model" => {
-                self.providers.moonshot.model = Some(value.to_string());
-            }
-            "providers.moonshot.auth_mode" => {
-                self.providers.moonshot.auth_mode = Some(value.to_string());
-            }
-            "providers.moonshot.http_headers" => {
-                self.providers.moonshot.http_headers = parse_http_headers(value)?;
-            }
-            "providers.sglang.api_key" => {
-                self.providers.sglang.api_key = Some(value.to_string());
-            }
-            "providers.sglang.base_url" => {
-                self.providers.sglang.base_url = Some(value.to_string());
-            }
-            "providers.sglang.model" => {
-                self.providers.sglang.model = Some(value.to_string());
-            }
-            "providers.sglang.http_headers" => {
-                self.providers.sglang.http_headers = parse_http_headers(value)?;
-            }
-            "providers.vllm.api_key" => {
-                self.providers.vllm.api_key = Some(value.to_string());
-            }
-            "providers.vllm.base_url" => {
-                self.providers.vllm.base_url = Some(value.to_string());
-            }
-            "providers.vllm.model" => {
-                self.providers.vllm.model = Some(value.to_string());
-            }
-            "providers.vllm.http_headers" => {
-                self.providers.vllm.http_headers = parse_http_headers(value)?;
-            }
-            "providers.ollama.api_key" => {
-                self.providers.ollama.api_key = Some(value.to_string());
-            }
-            "providers.ollama.base_url" => {
-                self.providers.ollama.base_url = Some(value.to_string());
-            }
-            "providers.ollama.model" => {
-                self.providers.ollama.model = Some(value.to_string());
-            }
-            "providers.ollama.http_headers" => {
-                self.providers.ollama.http_headers = parse_http_headers(value)?;
-            }
-            "providers.huggingface.api_key" => {
-                self.providers.huggingface.api_key = Some(value.to_string());
-            }
-            "providers.huggingface.base_url" => {
-                self.providers.huggingface.base_url = Some(value.to_string());
-            }
-            "providers.huggingface.model" => {
-                self.providers.huggingface.model = Some(value.to_string());
-            }
-            "providers.huggingface.http_headers" => {
-                self.providers.huggingface.http_headers = parse_http_headers(value)?;
-            }
-            "providers.together.api_key" => {
-                self.providers.together.api_key = Some(value.to_string());
-            }
-            "providers.together.base_url" => {
-                self.providers.together.base_url = Some(value.to_string());
-            }
-            "providers.together.model" => {
-                self.providers.together.model = Some(value.to_string());
-            }
-            "providers.together.http_headers" => {
-                self.providers.together.http_headers = parse_http_headers(value)?;
-            }
             _ => {
                 self.extras
                     .insert(key.to_string(), toml::Value::String(value.to_string()));
@@ -1817,6 +1712,11 @@ impl ConfigToml {
     }
 
     pub fn unset_value(&mut self, key: &str) -> Result<()> {
+        if let Some((provider, field)) = parse_provider_config_key(key) {
+            unset_provider_config_value(self, provider, field);
+            return Ok(());
+        }
+
         match key {
             "provider" => self.provider = ProviderKind::Deepseek,
             "api_key" => self.api_key = None,
@@ -1836,108 +1736,6 @@ impl ConfigToml {
                     sinks.unix_socket_path = None;
                 }
             }
-            "providers.deepseek.api_key" => {
-                self.providers.deepseek.api_key = None;
-                self.api_key = None;
-            }
-            "providers.deepseek.base_url" => {
-                self.providers.deepseek.base_url = None;
-                self.base_url = None;
-            }
-            "providers.deepseek.model" => {
-                self.providers.deepseek.model = None;
-                self.default_text_model = None;
-            }
-            "providers.deepseek.http_headers" => {
-                self.providers.deepseek.http_headers.clear();
-                self.http_headers.clear();
-            }
-            "providers.openai.api_key" => self.providers.openai.api_key = None,
-            "providers.openai.base_url" => self.providers.openai.base_url = None,
-            "providers.openai.model" => self.providers.openai.model = None,
-            "providers.openai.http_headers" => self.providers.openai.http_headers.clear(),
-            "providers.atlascloud.api_key" => self.providers.atlascloud.api_key = None,
-            "providers.atlascloud.base_url" => self.providers.atlascloud.base_url = None,
-            "providers.atlascloud.model" => self.providers.atlascloud.model = None,
-            "providers.atlascloud.http_headers" => self.providers.atlascloud.http_headers.clear(),
-            "providers.wanjie_ark.api_key" => self.providers.wanjie_ark.api_key = None,
-            "providers.wanjie_ark.base_url" => self.providers.wanjie_ark.base_url = None,
-            "providers.wanjie_ark.model" => self.providers.wanjie_ark.model = None,
-            "providers.volcengine.api_key" => self.providers.volcengine.api_key = None,
-            "providers.volcengine.base_url" => self.providers.volcengine.base_url = None,
-            "providers.volcengine.model" => self.providers.volcengine.model = None,
-            "providers.volcengine.http_headers" => {
-                self.providers.volcengine.http_headers.clear();
-            }
-            "providers.wanjie_ark.http_headers" => {
-                self.providers.wanjie_ark.http_headers.clear();
-            }
-            "providers.nvidia_nim.api_key" => self.providers.nvidia_nim.api_key = None,
-            "providers.nvidia_nim.base_url" => self.providers.nvidia_nim.base_url = None,
-            "providers.nvidia_nim.model" => self.providers.nvidia_nim.model = None,
-            "providers.nvidia_nim.http_headers" => self.providers.nvidia_nim.http_headers.clear(),
-            "providers.openrouter.api_key" => self.providers.openrouter.api_key = None,
-            "providers.openrouter.base_url" => self.providers.openrouter.base_url = None,
-            "providers.openrouter.model" => self.providers.openrouter.model = None,
-            "providers.openrouter.http_headers" => self.providers.openrouter.http_headers.clear(),
-            "providers.xiaomi_mimo.api_key" => self.providers.xiaomi_mimo.api_key = None,
-            "providers.xiaomi_mimo.base_url" => self.providers.xiaomi_mimo.base_url = None,
-            "providers.xiaomi_mimo.model" => self.providers.xiaomi_mimo.model = None,
-            "providers.xiaomi_mimo.mode" => self.providers.xiaomi_mimo.mode = None,
-            "providers.xiaomi_mimo.http_headers" => {
-                self.providers.xiaomi_mimo.http_headers.clear();
-            }
-            "providers.novita.api_key" => self.providers.novita.api_key = None,
-            "providers.novita.base_url" => self.providers.novita.base_url = None,
-            "providers.novita.model" => self.providers.novita.model = None,
-            "providers.novita.http_headers" => self.providers.novita.http_headers.clear(),
-            "providers.fireworks.api_key" => self.providers.fireworks.api_key = None,
-            "providers.fireworks.base_url" => self.providers.fireworks.base_url = None,
-            "providers.fireworks.model" => self.providers.fireworks.model = None,
-            "providers.fireworks.http_headers" => self.providers.fireworks.http_headers.clear(),
-            "providers.siliconflow.api_key" => self.providers.siliconflow.api_key = None,
-            "providers.siliconflow.base_url" => self.providers.siliconflow.base_url = None,
-            "providers.siliconflow.model" => self.providers.siliconflow.model = None,
-            "providers.siliconflow.http_headers" => {
-                self.providers.siliconflow.http_headers.clear();
-            }
-            "providers.siliconflow_cn.api_key" => self.providers.siliconflow_cn.api_key = None,
-            "providers.siliconflow_cn.base_url" => self.providers.siliconflow_cn.base_url = None,
-            "providers.siliconflow_cn.model" => self.providers.siliconflow_cn.model = None,
-            "providers.siliconflow_cn.http_headers" => {
-                self.providers.siliconflow_cn.http_headers.clear();
-            }
-            "providers.arcee.api_key" => self.providers.arcee.api_key = None,
-            "providers.arcee.base_url" => self.providers.arcee.base_url = None,
-            "providers.arcee.model" => self.providers.arcee.model = None,
-            "providers.arcee.http_headers" => {
-                self.providers.arcee.http_headers.clear();
-            }
-            "providers.moonshot.api_key" => self.providers.moonshot.api_key = None,
-            "providers.moonshot.base_url" => self.providers.moonshot.base_url = None,
-            "providers.moonshot.model" => self.providers.moonshot.model = None,
-            "providers.moonshot.auth_mode" => self.providers.moonshot.auth_mode = None,
-            "providers.moonshot.http_headers" => self.providers.moonshot.http_headers.clear(),
-            "providers.sglang.api_key" => self.providers.sglang.api_key = None,
-            "providers.sglang.base_url" => self.providers.sglang.base_url = None,
-            "providers.sglang.model" => self.providers.sglang.model = None,
-            "providers.sglang.http_headers" => self.providers.sglang.http_headers.clear(),
-            "providers.vllm.api_key" => self.providers.vllm.api_key = None,
-            "providers.vllm.base_url" => self.providers.vllm.base_url = None,
-            "providers.vllm.model" => self.providers.vllm.model = None,
-            "providers.vllm.http_headers" => self.providers.vllm.http_headers.clear(),
-            "providers.ollama.api_key" => self.providers.ollama.api_key = None,
-            "providers.ollama.base_url" => self.providers.ollama.base_url = None,
-            "providers.ollama.model" => self.providers.ollama.model = None,
-            "providers.ollama.http_headers" => self.providers.ollama.http_headers.clear(),
-            "providers.huggingface.api_key" => self.providers.huggingface.api_key = None,
-            "providers.huggingface.base_url" => self.providers.huggingface.base_url = None,
-            "providers.huggingface.model" => self.providers.huggingface.model = None,
-            "providers.huggingface.http_headers" => self.providers.huggingface.http_headers.clear(),
-            "providers.together.api_key" => self.providers.together.api_key = None,
-            "providers.together.base_url" => self.providers.together.base_url = None,
-            "providers.together.model" => self.providers.together.model = None,
-            "providers.together.http_headers" => self.providers.together.http_headers.clear(),
             _ => {
                 self.extras.remove(key);
             }
@@ -1996,239 +1794,13 @@ impl ConfigToml {
                 v.display().to_string(),
             );
         }
-        if let Some(v) = self.providers.deepseek.api_key.as_ref() {
-            out.insert("providers.deepseek.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.deepseek.base_url.as_ref() {
-            out.insert("providers.deepseek.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.deepseek.model.as_ref() {
-            out.insert("providers.deepseek.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.deepseek.http_headers) {
-            out.insert("providers.deepseek.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.openai.api_key.as_ref() {
-            out.insert("providers.openai.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.openai.base_url.as_ref() {
-            out.insert("providers.openai.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.openai.model.as_ref() {
-            out.insert("providers.openai.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.openai.http_headers) {
-            out.insert("providers.openai.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.atlascloud.api_key.as_ref() {
-            out.insert("providers.atlascloud.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.atlascloud.base_url.as_ref() {
-            out.insert("providers.atlascloud.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.atlascloud.model.as_ref() {
-            out.insert("providers.atlascloud.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.atlascloud.http_headers) {
-            out.insert("providers.atlascloud.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.volcengine.api_key.as_ref() {
-            out.insert("providers.volcengine.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.volcengine.base_url.as_ref() {
-            out.insert("providers.volcengine.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.volcengine.model.as_ref() {
-            out.insert("providers.volcengine.model".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.wanjie_ark.api_key.as_ref() {
-            out.insert("providers.wanjie_ark.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.wanjie_ark.base_url.as_ref() {
-            out.insert("providers.wanjie_ark.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.wanjie_ark.model.as_ref() {
-            out.insert("providers.wanjie_ark.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.volcengine.http_headers) {
-            out.insert("providers.volcengine.http_headers".to_string(), v);
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.wanjie_ark.http_headers) {
-            out.insert("providers.wanjie_ark.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.nvidia_nim.api_key.as_ref() {
-            out.insert("providers.nvidia_nim.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.nvidia_nim.base_url.as_ref() {
-            out.insert("providers.nvidia_nim.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.nvidia_nim.model.as_ref() {
-            out.insert("providers.nvidia_nim.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.nvidia_nim.http_headers) {
-            out.insert("providers.nvidia_nim.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.openrouter.api_key.as_ref() {
-            out.insert("providers.openrouter.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.openrouter.base_url.as_ref() {
-            out.insert("providers.openrouter.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.openrouter.model.as_ref() {
-            out.insert("providers.openrouter.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.openrouter.http_headers) {
-            out.insert("providers.openrouter.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.xiaomi_mimo.api_key.as_ref() {
-            out.insert(
-                "providers.xiaomi_mimo.api_key".to_string(),
-                redact_secret(v),
+
+        for provider in ProviderKind::ALL {
+            insert_provider_config_values(
+                &mut out,
+                provider,
+                self.providers.for_provider(provider),
             );
-        }
-        if let Some(v) = self.providers.xiaomi_mimo.base_url.as_ref() {
-            out.insert("providers.xiaomi_mimo.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.xiaomi_mimo.model.as_ref() {
-            out.insert("providers.xiaomi_mimo.model".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.xiaomi_mimo.mode.as_ref() {
-            out.insert("providers.xiaomi_mimo.mode".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.xiaomi_mimo.http_headers) {
-            out.insert("providers.xiaomi_mimo.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.novita.api_key.as_ref() {
-            out.insert("providers.novita.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.novita.base_url.as_ref() {
-            out.insert("providers.novita.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.novita.model.as_ref() {
-            out.insert("providers.novita.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.novita.http_headers) {
-            out.insert("providers.novita.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.fireworks.api_key.as_ref() {
-            out.insert("providers.fireworks.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.fireworks.base_url.as_ref() {
-            out.insert("providers.fireworks.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.fireworks.model.as_ref() {
-            out.insert("providers.fireworks.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.fireworks.http_headers) {
-            out.insert("providers.fireworks.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.siliconflow.api_key.as_ref() {
-            out.insert(
-                "providers.siliconflow.api_key".to_string(),
-                redact_secret(v),
-            );
-        }
-        if let Some(v) = self.providers.siliconflow.base_url.as_ref() {
-            out.insert("providers.siliconflow.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.siliconflow.model.as_ref() {
-            out.insert("providers.siliconflow.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.siliconflow.http_headers) {
-            out.insert("providers.siliconflow.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.siliconflow_cn.api_key.as_ref() {
-            out.insert(
-                "providers.siliconflow_cn.api_key".to_string(),
-                redact_secret(v),
-            );
-        }
-        if let Some(v) = self.providers.siliconflow_cn.base_url.as_ref() {
-            out.insert("providers.siliconflow_cn.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.siliconflow_cn.model.as_ref() {
-            out.insert("providers.siliconflow_cn.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.siliconflow_cn.http_headers) {
-            out.insert("providers.siliconflow_cn.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.arcee.api_key.as_ref() {
-            out.insert("providers.arcee.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.arcee.base_url.as_ref() {
-            out.insert("providers.arcee.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.arcee.model.as_ref() {
-            out.insert("providers.arcee.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.arcee.http_headers) {
-            out.insert("providers.arcee.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.moonshot.api_key.as_ref() {
-            out.insert("providers.moonshot.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.moonshot.base_url.as_ref() {
-            out.insert("providers.moonshot.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.moonshot.model.as_ref() {
-            out.insert("providers.moonshot.model".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.moonshot.auth_mode.as_ref() {
-            out.insert("providers.moonshot.auth_mode".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.moonshot.http_headers) {
-            out.insert("providers.moonshot.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.sglang.api_key.as_ref() {
-            out.insert("providers.sglang.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.sglang.base_url.as_ref() {
-            out.insert("providers.sglang.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.sglang.model.as_ref() {
-            out.insert("providers.sglang.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.sglang.http_headers) {
-            out.insert("providers.sglang.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.vllm.api_key.as_ref() {
-            out.insert("providers.vllm.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.vllm.base_url.as_ref() {
-            out.insert("providers.vllm.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.vllm.model.as_ref() {
-            out.insert("providers.vllm.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.vllm.http_headers) {
-            out.insert("providers.vllm.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.ollama.api_key.as_ref() {
-            out.insert("providers.ollama.api_key".to_string(), redact_secret(v));
-        }
-        if let Some(v) = self.providers.ollama.base_url.as_ref() {
-            out.insert("providers.ollama.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.ollama.model.as_ref() {
-            out.insert("providers.ollama.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.ollama.http_headers) {
-            out.insert("providers.ollama.http_headers".to_string(), v);
-        }
-        if let Some(v) = self.providers.huggingface.api_key.as_ref() {
-            out.insert(
-                "providers.huggingface.api_key".to_string(),
-                redact_secret(v),
-            );
-        }
-        if let Some(v) = self.providers.huggingface.base_url.as_ref() {
-            out.insert("providers.huggingface.base_url".to_string(), v.clone());
-        }
-        if let Some(v) = self.providers.huggingface.model.as_ref() {
-            out.insert("providers.huggingface.model".to_string(), v.clone());
-        }
-        if let Some(v) = serialize_http_headers(&self.providers.huggingface.http_headers) {
-            out.insert("providers.huggingface.http_headers".to_string(), v);
         }
 
         for (k, v) in &self.extras {
@@ -5770,6 +5342,98 @@ unix_socket_path = "/tmp/cw-hooks.sock"
 
         config.unset_value("providers.volcengine.http_headers")?;
         assert_eq!(config.get_value("providers.volcengine.http_headers"), None);
+        Ok(())
+    }
+
+    #[test]
+    fn provider_key_value_api_covers_all_provider_metadata_entries() -> Result<()> {
+        for provider in ProviderKind::ALL {
+            let table = provider.provider().provider_config_key();
+            let mut config = ConfigToml::default();
+            let api_key = format!("secret-value-for-{table}-123456");
+            let api_key_path = format!("providers.{table}.api_key");
+            let base_url_path = format!("providers.{table}.base_url");
+            let model_path = format!("providers.{table}.model");
+            let headers_path = format!("providers.{table}.http_headers");
+            let mode_path = format!("providers.{table}.mode");
+            let auth_mode_path = format!("providers.{table}.auth_mode");
+            let insecure_path = format!("providers.{table}.insecure_skip_tls_verify");
+            let path_suffix_path = format!("providers.{table}.path_suffix");
+
+            config.set_value(&api_key_path, &api_key)?;
+            config.set_value(&base_url_path, "https://gateway.example/v1")?;
+            config.set_value(&model_path, "provider-test-model")?;
+            config.set_value(&headers_path, "X-Test=ok")?;
+            config.set_value(&mode_path, "concise")?;
+            config.set_value(&auth_mode_path, "api_key")?;
+            config.set_value(&insecure_path, "true")?;
+            config.set_value(&path_suffix_path, "/chat/completions")?;
+
+            assert_eq!(
+                config.get_value(&api_key_path).as_deref(),
+                Some(api_key.as_str())
+            );
+            assert_eq!(
+                config.get_value(&base_url_path).as_deref(),
+                Some("https://gateway.example/v1")
+            );
+            assert_eq!(
+                config.get_value(&model_path).as_deref(),
+                Some("provider-test-model")
+            );
+            assert_eq!(
+                config.get_value(&headers_path).as_deref(),
+                Some("X-Test=ok")
+            );
+            assert_eq!(config.get_value(&mode_path).as_deref(), Some("concise"));
+            assert_eq!(
+                config.get_value(&auth_mode_path).as_deref(),
+                Some("api_key")
+            );
+            assert_eq!(config.get_value(&insecure_path).as_deref(), Some("true"));
+            assert_eq!(
+                config.get_value(&path_suffix_path).as_deref(),
+                Some("/chat/completions")
+            );
+
+            let listed = config.list_values();
+            let listed_api_key = listed
+                .get(&api_key_path)
+                .expect("provider API key is listed");
+            assert!(listed_api_key.contains("***"));
+            assert_ne!(listed_api_key, &api_key);
+            assert_eq!(
+                listed.get(&headers_path).map(String::as_str),
+                Some("X-Test=ok")
+            );
+            assert_eq!(listed.get(&insecure_path).map(String::as_str), Some("true"));
+
+            config.unset_value(&api_key_path)?;
+            config.unset_value(&base_url_path)?;
+            config.unset_value(&model_path)?;
+            config.unset_value(&headers_path)?;
+            config.unset_value(&mode_path)?;
+            config.unset_value(&auth_mode_path)?;
+            config.unset_value(&insecure_path)?;
+            config.unset_value(&path_suffix_path)?;
+
+            assert_eq!(config.get_value(&api_key_path), None);
+            assert_eq!(config.get_value(&base_url_path), None);
+            assert_eq!(config.get_value(&model_path), None);
+            assert_eq!(config.get_value(&headers_path), None);
+            assert_eq!(config.get_value(&mode_path), None);
+            assert_eq!(config.get_value(&auth_mode_path), None);
+            assert_eq!(config.get_value(&insecure_path), None);
+            assert_eq!(config.get_value(&path_suffix_path), None);
+
+            if provider == ProviderKind::Deepseek {
+                assert_eq!(config.api_key, None);
+                assert_eq!(config.base_url, None);
+                assert_eq!(config.default_text_model, None);
+                assert!(config.http_headers.is_empty());
+            }
+        }
+
         Ok(())
     }
 
