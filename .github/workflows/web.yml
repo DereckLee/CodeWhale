@@ -32,6 +32,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Generate derived facts
+        # facts.generated.ts is gitignored and produced by derive-facts.mjs;
+        # tsc --noEmit fails without it (TS2307) and downstream inferences
+        # cascade into spurious TS7006 errors, so regenerate before type check.
+        run: npm run prebuild
       - name: Run ESLint
         run: npm run lint
       - name: TypeScript type check
