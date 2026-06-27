@@ -920,7 +920,10 @@ impl WorkingSet {
                         lines.push("### Active file contents (cache-resident)".to_string());
                         header_pushed = true;
                     }
-                    lines.push(format!("<!-- file: {} (unreadable, skipped) -->", entry.path));
+                    lines.push(format!(
+                        "<!-- file: {} (unreadable, skipped) -->",
+                        entry.path
+                    ));
                     continue;
                 }
             };
