@@ -184,7 +184,7 @@
     "KbSendDraft": "Enviar rascunho atual",
     "KbCloseMenu": "Fechar menu, cancelar requisição, descartar rascunho ou limpar entrada",
     "KbCancelOrExit": "Cancelar requisição ou sair quando ocioso",
-    "KbShellControls": "Enviar o comando em primeiro plano para segundo plano",
+    "KbShellControls": "Mover a espera do shell para /jobs",
     "KbExitEmpty": "Sair quando entrada vazia",
     "KbCommandPalette": "Abrir paleta de comandos",
     "KbCancelBackgroundShellJobs": "Cancelar todos os trabalhos shell em segundo plano em execução (barra lateral Tasks)",

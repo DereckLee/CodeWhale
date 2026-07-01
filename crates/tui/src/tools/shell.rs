@@ -2686,7 +2686,7 @@ impl ToolSpec for ExecShellTool {
                 } else if result.status == ShellStatus::Running {
                     if backgrounded_foreground {
                         format!(
-                            "Command moved to background: {task_id_str}\n\nReturns immediately; completion is tracked in task/status state. Keep working; call exec_shell_wait only if you need early output, final output, or wait=true at a true dependency."
+                            "Foreground shell wait moved to /jobs: {task_id_str}\n\nReturns immediately; completion is tracked in task/status state. Keep working; call exec_shell_wait only if you need early output, final output, or wait=true at a true dependency."
                         )
                     } else {
                         format!(

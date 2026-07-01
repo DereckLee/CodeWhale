@@ -194,7 +194,7 @@
   "KbSendDraft": "发送当前草稿",
   "KbCloseMenu": "关闭菜单、取消请求、丢弃草稿或清空输入",
   "KbCancelOrExit": "取消请求，或空闲时退出",
-  "KbShellControls": "将正在运行的前台命令转入后台",
+  "KbShellControls": "将正在等待的 shell 移到 /jobs",
   "KbExitEmpty": "输入框为空时退出",
   "KbCommandPalette": "打开命令面板",
   "KbCancelBackgroundShellJobs": "取消所有正在运行的后台 shell 作业（Tasks 侧边栏）",

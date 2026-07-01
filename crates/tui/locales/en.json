@@ -204,7 +204,7 @@
     "KbSendDraft": "Send the current draft",
     "KbCloseMenu": "Close menu, cancel request, discard draft, or clear input",
     "KbCancelOrExit": "Cancel request, or exit when idle",
-    "KbShellControls": "Background the running foreground shell command",
+    "KbShellControls": "Move the running shell wait to /jobs",
     "KbExitEmpty": "Exit when input is empty",
     "KbCommandPalette": "Open the command palette",
     "KbCancelBackgroundShellJobs": "Cancel all running background shell jobs (Tasks sidebar)",

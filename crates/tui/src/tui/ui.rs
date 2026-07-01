@@ -3972,10 +3972,10 @@ async fn run_event_loop(
                 && key_shortcuts::has_control_like_modifier(key.modifiers)
                 && app.view_stack.is_empty()
             {
-                // #3032: Ctrl+B directly backgrounds the active foreground
-                // shell command instead of opening a two-step shell-control
-                // menu.  When nothing is backgroundable, the status message
-                // tells the user what's going on.
+                // #3032/#3859: Ctrl+B moves the active foreground shell wait
+                // into /jobs instead of opening a two-step shell-control menu.
+                // When nothing is movable, the status message tells the user
+                // what's going on.
                 request_foreground_shell_background(app);
                 app.needs_redraw = true;
                 continue;
@@ -10597,7 +10597,7 @@ fn render_toast_stack_overlay(
 
 pub(crate) fn request_foreground_shell_background(app: &mut App) {
     if !app.is_loading {
-        app.status_message = Some("No foreground shell command to background".to_string());
+        app.status_message = Some("No foreground shell wait to move to /jobs".to_string());
         return;
     }
     if !active_foreground_shell_running(app) {
@@ -10616,7 +10616,7 @@ pub(crate) fn request_foreground_shell_background(app: &mut App) {
             "no foreground shell command is running"
         };
         app.status_message = Some(format!(
-            "Cannot background: {reason}. Press Ctrl+C to cancel the turn, or wait for completion."
+            "Cannot move to /jobs: {reason}. Press Ctrl+C to cancel the turn, or wait for completion."
         ));
         return;
     }
@@ -10629,7 +10629,7 @@ pub(crate) fn request_foreground_shell_background(app: &mut App) {
     match shell_manager.lock() {
         Ok(mut manager) => {
             manager.request_foreground_background();
-            app.status_message = Some("Backgrounding current shell command...".to_string());
+            app.status_message = Some("Moving current shell command to /jobs...".to_string());
         }
         Err(_) => {
             app.status_message = Some("Shell manager lock is poisoned".to_string());

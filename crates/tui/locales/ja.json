@@ -189,7 +189,7 @@
     "KbSendDraft": "現在の下書きを送信",
     "KbCloseMenu": "メニューを閉じる、リクエストをキャンセル、下書きを破棄、または入力をクリア",
     "KbCancelOrExit": "リクエストをキャンセル、またはアイドル時に終了",
-    "KbShellControls": "実行中のフォアグラウンドコマンドをバックグラウンドへ移す",
+    "KbShellControls": "実行中のシェル待機を /jobs へ移動",
     "KbExitEmpty": "入力が空の時に終了",
     "KbCommandPalette": "コマンドパレットを開く",
     "KbCancelBackgroundShellJobs": "実行中のバックグラウンド shell ジョブをすべてキャンセル（Tasks サイドバー）",

@@ -188,7 +188,7 @@
     "KbSendDraft": "Gửi bản nháp hiện tại",
     "KbCloseMenu": "Đóng menu, hủy yêu cầu, hủy bản nháp hoặc xóa sạch đầu vào",
     "KbCancelOrExit": "Hủy yêu cầu, hoặc thoát khi rảnh",
-    "KbShellControls": "Chuyển lệnh shell đang chạy ở tiền cảnh xuống nền",
+    "KbShellControls": "Chuyển phiên chờ shell sang /jobs",
     "KbExitEmpty": "Thoát khi khung nhập trống",
     "KbCommandPalette": "Mở bảng lệnh (command palette)",
     "KbCancelBackgroundShellJobs": "Hủy mọi tác vụ shell nền đang chạy (thanh bên Tasks)",
