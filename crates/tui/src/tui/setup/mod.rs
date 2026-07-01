@@ -1920,6 +1920,66 @@ mod tests {
     }
 
     #[test]
+    fn setup_wizard_is_usable_and_opaque_at_blocker_sizes() {
+        use crate::tui::views::ViewStack;
+        use ratatui::{buffer::Buffer, layout::Rect};
+        use unicode_width::UnicodeWidthStr;
+
+        const BLOCKER_SIZES: [(u16, u16); 4] = [(80, 24), (100, 30), (120, 32), (160, 40)];
+        for (w, h) in BLOCKER_SIZES {
+            let area = Rect::new(0, 0, w, h);
+            let mut buf = Buffer::empty(area);
+            for y in 0..h {
+                for x in 0..w {
+                    buf[(x, y)].set_symbol("X");
+                }
+            }
+            let mut stack = ViewStack::new();
+            stack.push(SetupWizardView::new_at_with_facts(
+                SetupState::default(),
+                Locale::En,
+                SetupStep::Constitution,
+                SetupRuntimeFacts {
+                    constitution_file: SetupConstitutionFileState::Loaded,
+                    ..SetupRuntimeFacts::default()
+                },
+            ));
+            stack.render(area, &mut buf);
+
+            let rows: Vec<String> = (0..h)
+                .map(|y| (0..w).map(|x| buf[(x, y)].symbol().to_string()).collect())
+                .collect();
+            let text = rows.join("\n");
+
+            for label in [
+                "Setup",
+                "Choice:",
+                "Existing file:",
+                "Purpose:",
+                "preview/save",
+                "use bundled",
+                "cancel",
+            ] {
+                assert!(text.contains(label), "{w}x{h}: missing '{label}'");
+            }
+            assert!(
+                !text.contains('X'),
+                "{w}x{h}: background bleed-through into setup modal"
+            );
+            assert!(
+                [palette::DEEPSEEK_INK, palette::DEEPSEEK_SLATE].contains(&buf[(w / 2, h / 2)].bg),
+                "{w}x{h}: modal interior must be opaque"
+            );
+            for (y, row) in rows.iter().enumerate() {
+                assert!(
+                    UnicodeWidthStr::width(row.trim_end()) <= usize::from(w),
+                    "{w}x{h}: row {y} overflows width: {row:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn persist_user_constitution_choice_writes_constitution_and_state() {
         let _guard = crate::test_support::lock_test_env();
         let tmp = tempfile::TempDir::new().expect("tempdir");
