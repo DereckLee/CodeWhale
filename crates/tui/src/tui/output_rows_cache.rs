@@ -189,7 +189,16 @@ pub fn get_or_compute_rows<F>(output: &str, width: u16, compute: F) -> Vec<Outpu
 where
     F: FnOnce() -> Vec<OutputRow>,
 {
-    let content_hash = hash_str(output);
+    get_or_compute_rows_with_hash(hash_str(output), width, compute)
+}
+
+/// As [`get_or_compute_rows`] but takes a precomputed content hash, so a
+/// caller that already hashed the output (e.g. to also key
+/// [`get_or_compute_indices`]) does not hash it a second time (#3757 review).
+pub fn get_or_compute_rows_with_hash<F>(content_hash: u64, width: u16, compute: F) -> Vec<OutputRow>
+where
+    F: FnOnce() -> Vec<OutputRow>,
+{
     GLOBAL_CACHE.with(|c| {
         c.borrow_mut()
             .get_or_compute_rows(content_hash, width, compute)

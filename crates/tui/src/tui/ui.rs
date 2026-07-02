@@ -1768,6 +1768,7 @@ async fn run_event_loop(
     let mut pending_translations = 0usize;
     let mut pending_thinking_translations = 0usize;
     let mut last_queue_state = (app.queued_messages.clone(), app.queued_draft.clone());
+    let mut last_queue_was_empty = app.queued_messages.is_empty() && app.queued_draft.is_none();
     let mut last_task_refresh = Instant::now()
         .checked_sub(Duration::from_secs(2))
         .unwrap_or_else(Instant::now);
@@ -3324,11 +3325,20 @@ async fn run_event_loop(
             app.needs_redraw = true;
         }
 
-        let queue_state = (app.queued_messages.clone(), app.queued_draft.clone());
-        if queue_state != last_queue_state {
-            persist_offline_queue_state(app);
-            last_queue_state = queue_state;
-            app.needs_redraw = true;
+        // Avoid cloning the queued messages/draft every loop iteration
+        // (~20-40 Hz) purely for change detection. When the queue is empty and
+        // was empty last time — the overwhelmingly common case — there is
+        // nothing to compare, so skip the clone entirely. A multi-KB queued
+        // draft is only cloned while one is actually pending.
+        let queue_now_empty = app.queued_messages.is_empty() && app.queued_draft.is_none();
+        if !(queue_now_empty && last_queue_was_empty) {
+            let queue_state = (app.queued_messages.clone(), app.queued_draft.clone());
+            if queue_state != last_queue_state {
+                persist_offline_queue_state(app);
+                last_queue_state = queue_state;
+                app.needs_redraw = true;
+            }
+            last_queue_was_empty = queue_now_empty;
         }
 
         if !app.view_stack.is_empty() {
